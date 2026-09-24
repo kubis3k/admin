@@ -8,3 +8,4 @@ node_modules/
 
 .claude/state/token-log/*.json
 *.tsbuildinfo
+.obsidian/

@@ -7,8 +7,11 @@ import {
   boolean,
   jsonb,
   timestamp,
+  time,
+  date,
   primaryKey,
   index,
+  unique,
   check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
@@ -165,12 +168,95 @@ export const siteMemberships = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// OPENING_HOURS — týdenní rozvrh, max 1 okno na den.
+// weekday: 0 = pondělí … 6 = neděle (český týden, ne JS getDay()).
+// closesAt < opensAt znamená otevírací dobu přes půlnoc (bary apod.).
+// ---------------------------------------------------------------------------
+export const openingHours = pgTable(
+  "opening_hours",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(), // 0 = pondělí … 6 = neděle
+    opensAt: time("opens_at").notNull(),
+    closesAt: time("closes_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    siteWeekdayUnique: unique("opening_hours_site_id_weekday_unique").on(
+      t.siteId,
+      t.weekday
+    ),
+    weekdayRange: check(
+      "opening_hours_weekday_range",
+      sql`${t.weekday} between 0 and 6`
+    ),
+    timesDiffer: check(
+      "opening_hours_times_differ",
+      sql`${t.opensAt} <> ${t.closesAt}`
+    ),
+  })
+);
+
+// ---------------------------------------------------------------------------
+// OPENING_HOUR_EXCEPTIONS — jednorázová výjimka z týdenního rozvrhu pro
+// konkrétní datum (svátek, akce, zavřeno kvůli nemoci…). Výjimka přebíjí
+// týdenní rozvrh, viz src/lib/hours.ts (computeEffectiveSchedule).
+// ---------------------------------------------------------------------------
+export const openingHourExceptions = pgTable(
+  "opening_hour_exceptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    isClosed: boolean("is_closed").notNull().default(false),
+    customOpensAt: time("custom_opens_at"),
+    customClosesAt: time("custom_closes_at"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    siteDateUnique: unique("opening_hour_exceptions_site_id_date_unique").on(
+      t.siteId,
+      t.date
+    ),
+    closedOrTimes: check(
+      "opening_hour_exceptions_closed_or_times",
+      sql`${t.isClosed} OR (${t.customOpensAt} IS NOT NULL AND ${t.customClosesAt} IS NOT NULL)`
+    ),
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Relace — usnadní nested query (site -> categories -> items)
 // ---------------------------------------------------------------------------
 export const sitesRelations = relations(sites, ({ many }) => ({
   menuCategories: many(menuCategories),
   memberships: many(siteMemberships),
+  openingHours: many(openingHours),
+  openingHourExceptions: many(openingHourExceptions),
 }));
+
+export const openingHoursRelations = relations(openingHours, ({ one }) => ({
+  site: one(sites, {
+    fields: [openingHours.siteId],
+    references: [sites.id],
+  }),
+}));
+
+export const openingHourExceptionsRelations = relations(
+  openingHourExceptions,
+  ({ one }) => ({
+    site: one(sites, {
+      fields: [openingHourExceptions.siteId],
+      references: [sites.id],
+    }),
+  })
+);
 
 export const usersRelations = relations(users, ({ many }) => ({
   memberships: many(siteMemberships),

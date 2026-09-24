@@ -9,18 +9,23 @@ zapínané per site (`sites.modules`), první implementovaný modul = **menu**.
 ```
 src/
   db/
-    schema.ts       — sites, menu_categories, menu_items
+    schema.ts       — sites, menu_categories, menu_items, opening_hours, opening_hour_exceptions
     index.ts        — Drizzle klient napojený na Neon
   lib/
     auth.ts         — requireSiteAccess(siteSlug, minRole) — kontrola role per site
+    hours.ts        — čistá logika otevírací doby (computeEffectiveSchedule, bez DB)
   auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
     api/auth/[...nextauth]/route.ts   — Auth.js handlers
     api/public/[site]/menu/route.ts   — veřejné API pro klientské weby
+    api/public/[site]/hours/route.ts  — veřejné API otevírací doby (14 dní dopředu)
     admin/login/page.tsx              — přihlašovací stránka (magic link)
     admin/[site]/menu/
       page.tsx      — admin UI (kategorie, položky, dostupnost)
       actions.ts    — server actions (create/update/delete)
+    admin/[site]/hours/
+      page.tsx      — admin UI (týdenní rozvrh, výjimky)
+      actions.ts    — server actions (setWeekday, upsertException, deleteException)
 ```
 
 ## Jak spustit
@@ -40,15 +45,17 @@ vlož řádek do `sites` s `modules: { menu: true, hours: false, events: false, 
 
 - Schéma pro `sites` (tenant) + modulové flagy
 - Kompletní menu modul: kategorie, položky, cena v halířích, alergeny, dostupnost
-- Veřejné API (`/api/public/[site]/menu`) s 60s cache
+- Modul otevírací doby: týdenní rozvrh (1 okno/den) + jednorázové výjimky
+  (svátek, akce, nemoc) — výjimka přebíjí rozvrh; `weekday` 0 = pondělí
+- Veřejná API (`/api/public/[site]/menu`, `/api/public/[site]/hours`) s 60s cache
 - Admin UI s CRUD operacemi přes server actions
 
 ## Co záměrně chybí (TODO, další fáze)
 
 - **Onboarding nového tenanta** — zatím se site vytváří ručně v DB
 - **Superadmin role, reset hesla** — mimo scope, řeší se to per-site rolí owner/staff
-- **Ostatní moduly** — otevírací doba, eventy, galerie, textový obsah (stejný vzor
-  jako menu: tabulka + server actions + admin page + veřejné API)
+- **Ostatní moduly** — eventy, galerie, textový obsah (stejný vzor
+  jako menu/otevírací doba: tabulka + server actions + admin page + veřejné API)
 - **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
   by šlo rovnou zavolat `revalidateTag()` na klientský web
 - **Upload obrázků** — `imageUrl` je teď jen text pole, chybí napojení na Vercel Blob/R2

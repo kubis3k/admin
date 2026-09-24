@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 1 z ROADMAP.md — Auth.js v5 (magic link) + users + site_memberships + requireSiteAccess(siteSlug, minRole)
-- tier: T4
+- cíl: Fáze 2 z ROADMAP.md — otevírací doba (opening_hours + opening_hour_exceptions, /admin/[site]/hours, /api/public/[site]/hours)
+- tier: T2
 - status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 1 ověřena E2E proti Neon (projekt gastro-admin / dawn-cell-01812144, eu-central-1): 403 bez membership + neexistující site, žádná self-registrace, token jednorázový, staff upraví položku, staff (podvržený POST) nesmaže kategorii, owner smaže, IDOR na cizí site no-op, CHECK lowercase; přidán rozcestník /admin; commitnuto lokálně
+- poslední dokončený krok: Fáze 2 hotová — critic APPROVE, E2E na Neon OK (výjimka přebíjí rozvrh v API, overnight, staff nezmění týden), commit; poznámky v notes/ (Obsidian)
 - rozpracovaný soubor + řádek: —
-- další krok: push do kubis3k/admin (na pokyn uživatele) → Fáze 2 (hodiny)
+- další krok: Fáze 3 (eventy) nebo push do kubis3k/admin — podle uživatele
 ## Mapa poznání (co víme o codebase)
 - src/db/schema.ts: sites, menu_categories, menu_items (beze změny) + users, accounts, sessions, verification_tokens (Auth.js/@auth/drizzle-adapter Postgres schéma, snake_case sloupce) + siteRole enum("owner","staff") + site_memberships (composite PK user_id+site_id, index na site_id); relations rozšířené o memberships
 - src/db/index.ts: drizzle neon-http, export db (se schema)
@@ -34,5 +34,16 @@
 - [2026-09-24] Žádný middleware — kontrola v page/action (Data Access Layer vzor)
 - [2026-09-24] Rozcestník /admin — po loginu bez callbackUrl bylo 404
 - [2026-09-24] Timing enumerace (await SMTP jen pro existující účet) vědomě neřešena — P3, fire-and-forget na serverless riskuje neodeslaný mail
+- [2026-09-24] F2: weekday 0 = pondělí … 6 = neděle (český týden); z data přes (getUTCDay()+6)%7
+- [2026-09-24] F2: 1 okno/den, unique(site_id, weekday); zavřený den = žádný řádek; closesAt < opensAt = přes půlnoc (bary)
+- [2026-09-24] F2: sloupce pg `time` (HH:MM) a `date` (mode string); unique(site_id, date) u výjimek + CHECK is_closed OR oba časy
+- [2026-09-24] F2: role — týdenní rozvrh = owner, výjimky = staff (provozní věc: nemoc, akce)
+- [2026-09-24] F2: čistá funkce computeEffectiveSchedule v src/lib/hours.ts; „dnes" počítané v Europe/Prague
+- src/db/schema.ts: + openingHours ("opening_hours": id, site_id FK cascade, weekday int 0-6 CHECK, opens_at/closes_at time, unique(site_id,weekday), CHECK opens_at<>closes_at) + openingHourExceptions ("opening_hour_exceptions": id, site_id FK cascade, date string mode, is_closed bool, custom_opens_at/custom_closes_at time nullable, reason text, unique(site_id,date), CHECK is_closed OR oba časy not null); relations rozšířené (sitesRelations.openingHours/openingHourExceptions, +2 nové relations objekty)
+- src/lib/hours.ts (NOVÝ): čistá logika bez DB/importů z "@/…" — TIMEZONE="Europe/Prague", WEEKDAY_NAMES (Pondělí..Neděle), todayInPrague, weekdayOf, addDays, normalizeTime, isValidTime, isValidDate, computeEffectiveSchedule(weekly, exceptions, from, days) — výjimka přebíjí weekly, bez řádku = zavřeno; ověřeno jednorázovým node skriptem (vše OK)
+- src/app/admin/[site]/hours/actions.ts (NOVÝ): setWeekday (owner, null=delete jinak onConflictDoUpdate target [siteId,weekday]), upsertException (staff, onConflictDoUpdate target [siteId,date], reason trim+max200), deleteException (staff, IDOR-safe where id+siteId)
+- src/app/admin/[site]/hours/page.tsx (NOVÝ): requireSiteAccess staff, isOwner řídí editační formuláře týdenního rozvrhu (input type=time), sekce výjimky (budoucí, řazené podle data) + form přidání
+- src/app/api/public/[site]/hours/route.ts (NOVÝ): revalidate 60, 404 site/modul, vrací {site,timezone,today,days (computeEffectiveSchedule od todayInPrague, 14 dní),weekly}
+- src/app/admin/page.tsx: rozcestník teď dotahuje i sites.modules a nabízí odkazy Menu/Otevírací doba podmíněně
 ## Otevřené otázky / blokery
 - slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)

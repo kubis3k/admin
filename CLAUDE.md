@@ -45,3 +45,11 @@ Praktické řízení effortu:
 
 ---
 
+
+---
+
+# POZNÁMKY (Obsidian)
+- Vault = kořen repa. Lidsky čitelná znalostní báze je v `notes/` — rozcestník `notes/gastro-admin.md`.
+- Po dokončení fáze: poznámka `notes/Fáze N — <název>.md` (co vzniklo, práva, E2E ověření) + zápis do `notes/Rozhodnutí.md` (append-only). Odkazy přes `[[wikilinks]]`.
+- `.claude/state/flow-state.md` zůstává krátký checkpoint pro agenty — detail patří do `notes/`, ne sem.
+- Nikdy do poznámek nepiš secrets (connection stringy, AUTH_SECRET).

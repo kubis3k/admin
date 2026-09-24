@@ -11,7 +11,12 @@ export default async function AdminHomePage() {
   if (!session?.user?.id) redirect("/admin/login");
 
   const memberships = await db
-    .select({ slug: sites.slug, name: sites.name, role: siteMemberships.role })
+    .select({
+      slug: sites.slug,
+      name: sites.name,
+      role: siteMemberships.role,
+      modules: sites.modules,
+    })
     .from(siteMemberships)
     .innerJoin(sites, eq(siteMemberships.siteId, sites.id))
     .where(eq(siteMemberships.userId, session.user.id))
@@ -26,7 +31,14 @@ export default async function AdminHomePage() {
         <ul>
           {memberships.map((m) => (
             <li key={m.slug}>
-              <Link href={`/admin/${m.slug}/menu`}>{m.name}</Link> ({m.role})
+              {m.name} ({m.role}):{" "}
+              {m.modules.menu && (
+                <Link href={`/admin/${m.slug}/menu`}>Menu</Link>
+              )}
+              {m.modules.menu && m.modules.hours && " · "}
+              {m.modules.hours && (
+                <Link href={`/admin/${m.slug}/hours`}>Otevírací doba</Link>
+              )}
             </li>
           ))}
         </ul>
