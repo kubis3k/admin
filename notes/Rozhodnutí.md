@@ -33,3 +33,10 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - Veřejné API: jen publikované od dneška; `?all=1` i minulé.
 - `imageUrl` zatím jen text s validací `http(s)` — upload ve Fázi 4.
 - Neplatný vstup → obecná error stránka (`admin/[site]/error.tsx`); vracení chyb do formuláře (`useActionState`) je dluh pro všechny moduly.
+
+## Fáze 5
+- Nový modulový flag `modules.content`; existující weby bez klíče = vypnuto.
+- Owner zakládá a maže stránky (struktura webu), staff upravuje text.
+- API vrací surový markdown — sanitizace při vykreslení je na klientském webu (zdokumentováno v README).
+- `createPage` přes `ON CONFLICT DO NOTHING` — souběžné založení nespadne na unique constraint.
+- Fáze 4 odložena: potřebuje Vercel Blob store + `BLOB_READ_WRITE_TOKEN` od uživatele.

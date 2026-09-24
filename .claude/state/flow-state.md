@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 3 z ROADMAP.md — eventy (tabulka events, admin CRUD /admin/[site]/events, /api/public/[site]/events)
+- cíl: Fáze 5 z ROADMAP.md — textový obsah (page_content, /admin/[site]/content, /api/public/[site]/content[/pageKey])
 - tier: T2
 - status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 3 hotová — critic APPROVE, E2E OK, error.tsx pro admin, commit + push; detail v notes/Fáze 3 — Eventy.md
+- poslední dokončený krok: Fáze 5 hotová — critic APPROVE (+ oprava race v createPage), E2E OK, commit + push; detail v notes/Fáze 5 — Textový obsah.md
 - rozpracovaný soubor + řádek: —
-- další krok: Fáze 4 (galerie + Vercel Blob upload) nebo Fáze 5 (textový obsah)
+- další krok: Fáze 4 (čeká na Vercel Blob store od uživatele), pak Fáze 6
 ## Mapa poznání (co víme o codebase)
 - src/db/schema.ts: sites, menu_categories, menu_items (beze změny) + users, accounts, sessions, verification_tokens (Auth.js/@auth/drizzle-adapter Postgres schéma, snake_case sloupce) + siteRole enum("owner","staff") + site_memberships (composite PK user_id+site_id, index na site_id); relations rozšířené o memberships
 - src/db/index.ts: drizzle neon-http, export db (se schema)
@@ -60,5 +60,18 @@
 - src/app/admin/page.tsx: rozcestník + odkaz "Eventy" když modules.events
 - README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F3
 - migrace 0003_events.sql vygenerována a aplikována (jen CREATE TABLE events + FK + index)
+- [2026-09-24] F5: nový klíč sites.modules.content (chybějící = vypnuto)
+- [2026-09-24] F5: owner zakládá/maže stránky (pageKey), staff edituje obsah
+- [2026-09-24] F5: API vrací surový markdown (bez HTML na serveru → bez XSS); pageKey /^[a-z0-9-]{1,50}$/, obsah ≤ 50 000 znaků
+- src/db/schema.ts: sites.modules + content:boolean (default false); + pageContent ("page_content": id, site_id FK cascade, page_key text notNull, content text notNull default '', created_at, updated_at; unique(site_id,page_key); CHECK page_key ~ '^[a-z0-9-]{1,50}$'); sitesRelations.pageContent + pageContentRelations (site)
+- src/lib/content.ts (NOVÝ, bez "@/" importů): PAGE_KEY_RE, isValidPageKey, MAX_CONTENT_LENGTH=50000, validateContent(s) — normalizuje jen \r\n→\n, jinak beze změny; src/lib/content.test.ts (6 testů: klíče, hranice délky, CRLF)
+- src/app/admin/[site]/content/actions.ts (NOVÝ): createPage (owner, kontrola duplicity pageKey PŘED insertem → hezká chyba místo 500 z unique), deletePage (owner, IDOR-safe and(id,siteId)), savePageContent (staff, IDOR-safe, updatedAt); všechny requireSiteAccess + requireModule(site,"content")
+- src/app/admin/[site]/content/page.tsx (NOVÝ): requireSiteAccess staff, isOwner řídí form "Nová stránka" a tlačítko "Smazat"; textarea rows=12 + Uložit pro staff i owner; hláška při vypnutém modulu; poznámka "Obsah je v Markdownu"
+- src/app/api/public/[site]/content/route.ts (NOVÝ): revalidate 60, 404 site/modul; {site,pages:[{pageKey,updatedAt}]}
+- src/app/api/public/[site]/content/[pageKey]/route.ts (NOVÝ): neplatný pageKey → 404 bez DB dotazu; jinak {site,pageKey,content,updatedAt} nebo 404
+- src/app/admin/page.tsx: rozcestník + odkaz "Obsah stránek" když modules.content
+- README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F5 (rich-text/náhled/verzování mimo scope)
+- migrace 0004_content.sql vygenerována a aplikována (CREATE TABLE page_content + FK + ALTER sites.modules default; nic jiného)
 ## Otevřené otázky / blokery
+- Fáze 4 čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele
 - slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)

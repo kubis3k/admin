@@ -19,7 +19,7 @@ import { relations, sql } from "drizzle-orm";
 // ---------------------------------------------------------------------------
 // SITES — jeden řádek = jeden klientský web (tenant).
 // `modules` říká, které moduly jsou pro daný web zapnuté.
-// Příklad: { menu: true, hours: false, events: false, gallery: false }
+// Příklad: { menu: true, hours: false, events: false, gallery: false, content: false }
 // U ADMI/Strikeland by menu bylo `false`, protože drží ChoiceQR.
 // ---------------------------------------------------------------------------
 export const sites = pgTable("sites", {
@@ -32,9 +32,16 @@ export const sites = pgTable("sites", {
       hours: boolean;
       events: boolean;
       gallery: boolean;
+      content: boolean;
     }>()
     .notNull()
-    .default({ menu: false, hours: false, events: false, gallery: false }),
+    .default({
+      menu: false,
+      hours: false,
+      events: false,
+      gallery: false,
+      content: false,
+    }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -261,6 +268,36 @@ export const events = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// PAGE_CONTENT — textový obsah stránek v Markdownu (F5).
+// page_key identifikuje stránku v rámci webu (např. "o-nas", "kontakt").
+// Veřejné API vrací surový markdown — žádné HTML se na serveru negeneruje,
+// takže tu nehrozí server-side XSS (viz src/lib/content.ts).
+// ---------------------------------------------------------------------------
+export const pageContent = pgTable(
+  "page_content",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    pageKey: text("page_key").notNull(),
+    content: text("content").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    siteKeyUnique: unique("page_content_site_id_page_key_unique").on(
+      t.siteId,
+      t.pageKey
+    ),
+    pageKeyFormat: check(
+      "page_content_page_key_format",
+      sql`${t.pageKey} ~ '^[a-z0-9-]{1,50}$'`
+    ),
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Relace — usnadní nested query (site -> categories -> items)
 // ---------------------------------------------------------------------------
 export const sitesRelations = relations(sites, ({ many }) => ({
@@ -269,11 +306,19 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   openingHours: many(openingHours),
   openingHourExceptions: many(openingHourExceptions),
   events: many(events),
+  pageContent: many(pageContent),
 }));
 
 export const eventsRelations = relations(events, ({ one }) => ({
   site: one(sites, {
     fields: [events.siteId],
+    references: [sites.id],
+  }),
+}));
+
+export const pageContentRelations = relations(pageContent, ({ one }) => ({
+  site: one(sites, {
+    fields: [pageContent.siteId],
     references: [sites.id],
   }),
 }));
