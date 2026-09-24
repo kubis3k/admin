@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: T1 — requireModule (server actions musí respektovat modulový flag) + vitest pro src/lib/hours.ts
-- tier: T1
+- cíl: Fáze 3 z ROADMAP.md — eventy (tabulka events, admin CRUD /admin/[site]/events, /api/public/[site]/events)
+- tier: T2
 - status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: T1 hotovo — requireModule v src/lib/auth.ts, zavolán ve všech akcích menu/hours actions.ts, vitest nainstalován, 30 testů (hours.test.ts) zelených, žádný bug v hours.ts nenalezen, README doplněno o `npm test`, tsc --noEmit a next build OK
+- poslední dokončený krok: Fáze 3 hotová — critic APPROVE, E2E OK, error.tsx pro admin, commit + push; detail v notes/Fáze 3 — Eventy.md
 - rozpracovaný soubor + řádek: —
-- další krok: Fáze 3 (eventy) nebo push do kubis3k/admin — podle uživatele
+- další krok: Fáze 4 (galerie + Vercel Blob upload) nebo Fáze 5 (textový obsah)
 ## Mapa poznání (co víme o codebase)
 - src/db/schema.ts: sites, menu_categories, menu_items (beze změny) + users, accounts, sessions, verification_tokens (Auth.js/@auth/drizzle-adapter Postgres schéma, snake_case sloupce) + siteRole enum("owner","staff") + site_memberships (composite PK user_id+site_id, index na site_id); relations rozšířené o memberships
 - src/db/index.ts: drizzle neon-http, export db (se schema)
@@ -48,5 +48,17 @@
 - src/lib/auth.ts: + requireModule(site, module) — forbidden() pokud !site.modules[module]; volat hned po requireSiteAccess ve všech server actions (stránky mají vlastní hlášku, ale bez týhle kontroly by šel podvržený POST zapisovat do vypnutého modulu); typ module = keyof (typeof sites.$inferSelect)["modules"]
 - src/app/admin/[site]/menu/actions.ts + hours/actions.ts: requireModule(site, "menu"/"hours") přidán do všech exportovaných akcí hned po requireSiteAccess
 - vitest (devDependency) + npm script "test": "vitest run"; src/lib/hours.test.ts (30 testů: weekdayOf, addDays, todayInPrague DST, normalizeTime, isValidTime, isValidDate, computeEffectiveSchedule) — čistě relativní import, žádný vitest.config.ts nebyl potřeba (hours.ts nemá "@/" importy)
+- [2026-09-24] F3: events.date = pg date (mode string) + start_time time nullable — místní čas Prahy, žádné TZ převody (jako hours)
+- [2026-09-24] F3: role — staff plný CRUD eventů vč. publikace (jako položky menu)
+- [2026-09-24] F3: veřejné API = jen is_published, date >= dnes (Praha), řazeno date+start_time asc; ?all=1 i minulé
+- [2026-09-24] F3: imageUrl jen text s validací http(s) — upload až Fáze 4
+- src/db/schema.ts: + events ("events": id, site_id FK sites cascade, title text notNull, description text nullable, date date(mode string) notNull, start_time time nullable, image_url text nullable, is_published bool notNull default false, created_at, updated_at; index (site_id,date); CHECK char_length(title) between 1 and 200); sitesRelations.events + eventsRelations (site)
+- src/lib/events.ts (NOVÝ, bez "@/" importů): validateEventInput(raw) → {ok:true,value}|{ok:false,error} — title trim 1–200, description trim ≤5000 (prázdné→null), date/startTime přes isValidDate/isValidTime z ./hours (relativní import), imageUrl prázdné→null jinak jen http(s) URL (new URL, ≤2000 znaků), isPublished bool default false; src/lib/events.test.ts (10 testů)
+- src/app/admin/[site]/events/actions.ts (NOVÝ): createEvent/updateEvent/setPublished/deleteEvent — všechny requireSiteAccess(siteSlug,"staff") + requireModule(site,"events"); update/setPublished/delete IDOR-safe přes and(id, siteId=site.id); updatedAt = new Date()
+- src/app/admin/[site]/events/page.tsx (NOVÝ): requireSiteAccess staff, hláška při vypnutém modulu; sekce Nadcházející (date>=todayInPrague, asc) a Proběhlé (date<today, desc, limit 20); sdílená komponenta EventItem s inline <details> edit formulářem; inline "use server" wrappery jako u hours
+- src/app/api/public/[site]/events/route.ts (NOVÝ): revalidate 60, 404 site/modul; jen is_published=true, bez `?all=1` jen date>=todayInPrague(); řazení date asc, start_time asc nulls first (raw sql); vrací {site,timezone,events:[{id,title,description,date,startTime|null,imageUrl}]} — bez isPublished/createdAt/siteId
+- src/app/admin/page.tsx: rozcestník + odkaz "Eventy" když modules.events
+- README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F3
+- migrace 0003_events.sql vygenerována a aplikována (jen CREATE TABLE events + FK + index)
 ## Otevřené otázky / blokery
 - slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)

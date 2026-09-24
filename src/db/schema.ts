@@ -232,6 +232,35 @@ export const openingHourExceptions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// EVENTS — jednorázové akce (bez RSVP/kapacity/opakování — mimo scope F3).
+// date/start_time = místní čas Prahy, žádné TZ převody (stejně jako hours).
+// ---------------------------------------------------------------------------
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    date: date("date", { mode: "string" }).notNull(),
+    startTime: time("start_time"),
+    imageUrl: text("image_url"),
+    isPublished: boolean("is_published").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    siteDateIdx: index("events_site_id_date_idx").on(t.siteId, t.date),
+    titleLength: check(
+      "events_title_length",
+      sql`char_length(${t.title}) between 1 and 200`
+    ),
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Relace — usnadní nested query (site -> categories -> items)
 // ---------------------------------------------------------------------------
 export const sitesRelations = relations(sites, ({ many }) => ({
@@ -239,6 +268,14 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   memberships: many(siteMemberships),
   openingHours: many(openingHours),
   openingHourExceptions: many(openingHourExceptions),
+  events: many(events),
+}));
+
+export const eventsRelations = relations(events, ({ one }) => ({
+  site: one(sites, {
+    fields: [events.siteId],
+    references: [sites.id],
+  }),
 }));
 
 export const openingHoursRelations = relations(openingHours, ({ one }) => ({

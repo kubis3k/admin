@@ -14,11 +14,13 @@ src/
   lib/
     auth.ts         — requireSiteAccess(siteSlug, minRole) — kontrola role per site
     hours.ts        — čistá logika otevírací doby (computeEffectiveSchedule, bez DB)
+    events.ts       — čistá logika validace eventů (validateEventInput, bez DB)
   auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
     api/auth/[...nextauth]/route.ts   — Auth.js handlers
     api/public/[site]/menu/route.ts   — veřejné API pro klientské weby
     api/public/[site]/hours/route.ts  — veřejné API otevírací doby (14 dní dopředu)
+    api/public/[site]/events/route.ts — veřejné API eventů (jen publikované)
     admin/login/page.tsx              — přihlašovací stránka (magic link)
     admin/[site]/menu/
       page.tsx      — admin UI (kategorie, položky, dostupnost)
@@ -26,6 +28,9 @@ src/
     admin/[site]/hours/
       page.tsx      — admin UI (týdenní rozvrh, výjimky)
       actions.ts    — server actions (setWeekday, upsertException, deleteException)
+    admin/[site]/events/
+      page.tsx      — admin UI (nadcházející/proběhlé eventy, publikace)
+      actions.ts    — server actions (createEvent, updateEvent, setPublished, deleteEvent)
 ```
 
 ## Jak spustit
@@ -48,15 +53,19 @@ vlož řádek do `sites` s `modules: { menu: true, hours: false, events: false, 
 - Kompletní menu modul: kategorie, položky, cena v halířích, alergeny, dostupnost
 - Modul otevírací doby: týdenní rozvrh (1 okno/den) + jednorázové výjimky
   (svátek, akce, nemoc) — výjimka přebíjí rozvrh; `weekday` 0 = pondělí
-- Veřejná API (`/api/public/[site]/menu`, `/api/public/[site]/hours`) s 60s cache
+- Modul eventů: jednorázové akce (název, datum, čas, popis, obrázek jako URL,
+  publikace) — bez RSVP/kapacity/opakování (mimo scope)
+- Veřejná API (`/api/public/[site]/menu`, `/api/public/[site]/hours`,
+  `/api/public/[site]/events`) s 60s cache
 - Admin UI s CRUD operacemi přes server actions
 
 ## Co záměrně chybí (TODO, další fáze)
 
 - **Onboarding nového tenanta** — zatím se site vytváří ručně v DB
 - **Superadmin role, reset hesla** — mimo scope, řeší se to per-site rolí owner/staff
-- **Ostatní moduly** — eventy, galerie, textový obsah (stejný vzor
-  jako menu/otevírací doba: tabulka + server actions + admin page + veřejné API)
+- **Ostatní moduly** — galerie, textový obsah (stejný vzor
+  jako menu/otevírací doba/eventy: tabulka + server actions + admin page + veřejné API)
+- **RSVP/kapacita a opakující se eventy** — mimo scope modulu eventů (F3)
 - **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
   by šlo rovnou zavolat `revalidateTag()` na klientský web
 - **Upload obrázků** — `imageUrl` je teď jen text pole, chybí napojení na Vercel Blob/R2

@@ -12,7 +12,7 @@ Stack: Next.js 15.5 (App Router), Drizzle, Neon Postgres, Auth.js v5.
 | 0 — Menu modul | ✅ | výchozí scaffold |
 | 1 — Auth & role | ✅ ověřeno E2E | [[Fáze 1 — Auth & role]] |
 | 2 — Otevírací doba | ✅ ověřeno E2E | [[Fáze 2 — Otevírací doba]] |
-| 3 — Eventy | ⏳ | |
+| 3 — Eventy | ✅ ověřeno E2E | [[Fáze 3 — Eventy]] |
 | 4 — Galerie + upload | ⏳ | |
 | 5 — Textový obsah | ⏳ | |
 | 6 — Onboarding tenanta | ⏳ | vyžaduje 1 |

@@ -26,3 +26,10 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - Server actions kontrolují modulový flag (`requireModule`) — platí i zpětně pro menu.
 - Zapínání modulů nedává ownerovi — je to rozhodnutí provozovatele (Fáze 6).
 - Veřejné API vrací 14 dní dopředu už spočítaných (klientský web nemusí nic počítat).
+
+## Fáze 3
+- `date` (datum) + volitelný `start_time`, místní čas Prahy — stejně jako otevírací doba.
+- Staff smí eventy vytvářet, upravovat, publikovat i mazat.
+- Veřejné API: jen publikované od dneška; `?all=1` i minulé.
+- `imageUrl` zatím jen text s validací `http(s)` — upload ve Fázi 4.
+- Neplatný vstup → obecná error stránka (`admin/[site]/error.tsx`); vracení chyb do formuláře (`useActionState`) je dluh pro všechny moduly.
