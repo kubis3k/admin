@@ -12,9 +12,12 @@ src/
     schema.ts       — sites, menu_categories, menu_items
     index.ts        — Drizzle klient napojený na Neon
   lib/
-    auth.ts         — DOČASNÝ auth stub (cookie token), TODO Auth.js v5
+    auth.ts         — requireSiteAccess(siteSlug, minRole) — kontrola role per site
+  auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
+    api/auth/[...nextauth]/route.ts   — Auth.js handlers
     api/public/[site]/menu/route.ts   — veřejné API pro klientské weby
+    admin/login/page.tsx              — přihlašovací stránka (magic link)
     admin/[site]/menu/
       page.tsx      — admin UI (kategorie, položky, dostupnost)
       actions.ts    — server actions (create/update/delete)
@@ -42,14 +45,39 @@ vlož řádek do `sites` s `modules: { menu: true, hours: false, events: false, 
 
 ## Co záměrně chybí (TODO, další fáze)
 
-- **Auth.js v5 + role** — teď je tam jen cookie token na celý systém, ne per-site role
-  (owner/staff). `src/lib/auth.ts` je napsaný tak, aby výměna nezasáhla admin stránky.
 - **Onboarding nového tenanta** — zatím se site vytváří ručně v DB
+- **Superadmin role, reset hesla** — mimo scope, řeší se to per-site rolí owner/staff
 - **Ostatní moduly** — otevírací doba, eventy, galerie, textový obsah (stejný vzor
   jako menu: tabulka + server actions + admin page + veřejné API)
 - **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
   by šlo rovnou zavolat `revalidateTag()` na klientský web
 - **Upload obrázků** — `imageUrl` je teď jen text pole, chybí napojení na Vercel Blob/R2
+
+## Přihlášení
+
+Žádná self-registrace — účet i jeho role na webu se vytváří ručně v DB (přes
+`db:studio` nebo SQL insertem):
+
+```sql
+-- e-mail vždy malými písmeny (hlídá to CHECK constraint)
+INSERT INTO users (email) VALUES ('jmeno@example.com');
+INSERT INTO site_memberships (user_id, site_id, role)
+VALUES (
+  (SELECT id FROM users WHERE email = 'jmeno@example.com'),
+  (SELECT id FROM sites WHERE slug = 'nazev-webu'),
+  'owner' -- nebo 'staff'
+);
+```
+
+Přihlášení pak probíhá přes magic link na `/admin/login` — zadá se e-mail a
+pokud pro něj existuje účet, přijde odkaz. Bez nastaveného `EMAIL_SERVER`
+(mimo produkci) se odkaz místo odeslání jen vypíše do konzole serveru
+(`[dev] přihlašovací odkaz pro ...`). V produkci musí být nastavené
+`EMAIL_SERVER`, `EMAIL_FROM` a mimo Vercel i `AUTH_URL`.
+
+Migrace: `0000_baseline` = stávající tabulky (sites, menu). Pokud DB vznikla
+přes `drizzle-kit push` bez migrací, označ 0000 jako aplikovanou (nebo pusť
+jen `0001_auth.sql`), jinak `db:migrate` spadne na existujících tabulkách.
 
 ## Poznámka k ADMI/Strikeland
 

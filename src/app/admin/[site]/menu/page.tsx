@@ -1,8 +1,15 @@
 import { db } from "@/db";
-import { sites, menuCategories } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth";
+import { menuCategories } from "@/db/schema";
+import { requireSiteAccess, hasRole } from "@/lib/auth";
 import { eq, asc } from "drizzle-orm";
-import { createCategory, createItem, toggleAvailability, deleteItem } from "./actions";
+import {
+  createCategory,
+  deleteCategory,
+  createItem,
+  updateItem,
+  toggleAvailability,
+  deleteItem,
+} from "./actions";
 
 function formatPrice(cents: number) {
   return (cents / 100).toLocaleString("cs-CZ", {
@@ -16,16 +23,9 @@ export default async function MenuAdminPage({
 }: {
   params: Promise<{ site: string }>;
 }) {
-  await requireAdmin();
   const { site: siteSlug } = await params;
-
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.slug, siteSlug),
-  });
-
-  if (!site) {
-    return <p>Web &quot;{siteSlug}&quot; nenalezen.</p>;
-  }
+  const { site, role } = await requireSiteAccess(siteSlug, "staff");
+  const isOwner = hasRole(role, "owner");
 
   if (!site.modules.menu) {
     return <p>Menu modul je pro tento web vypnutý (drží si externí systém).</p>;
@@ -43,12 +43,43 @@ export default async function MenuAdminPage({
 
       {categories.map((category) => (
         <section key={category.id} style={{ marginBottom: 32 }}>
-          <h2>{category.name}</h2>
+          <h2>
+            {category.name}
+            {isOwner && (
+              <form
+                action={deleteCategory.bind(null, category.id, siteSlug)}
+                style={{ display: "inline", marginLeft: 8 }}
+              >
+                <button type="submit">Smazat kategorii</button>
+              </form>
+            )}
+          </h2>
 
           <ul>
             {category.items.map((item) => (
               <li key={item.id} style={{ marginBottom: 8 }}>
-                <strong>{item.name}</strong> — {formatPrice(item.priceCents)}
+                <form
+                  action={async (formData: FormData) => {
+                    "use server";
+                    await updateItem(item.id, siteSlug, {
+                      name: String(formData.get("name")),
+                      priceCents: Math.round(Number(formData.get("price")) * 100),
+                    });
+                  }}
+                  style={{ display: "inline" }}
+                >
+                  <input name="name" defaultValue={item.name} required />
+                  <input
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    defaultValue={(item.priceCents / 100).toFixed(2)}
+                    required
+                  />
+                  <button type="submit">Uložit</button>
+                </form>
+                {" — "}
+                {formatPrice(item.priceCents)}
                 {!item.isAvailable && " (nedostupné)"}
                 <form
                   action={toggleAvailability.bind(
@@ -95,15 +126,17 @@ export default async function MenuAdminPage({
         </section>
       ))}
 
-      <form
-        action={async (formData: FormData) => {
-          "use server";
-          await createCategory(siteSlug, String(formData.get("name")));
-        }}
-      >
-        <input name="name" placeholder="Nová kategorie (např. Předkrmy)" required />
-        <button type="submit">Přidat kategorii</button>
-      </form>
+      {isOwner && (
+        <form
+          action={async (formData: FormData) => {
+            "use server";
+            await createCategory(siteSlug, String(formData.get("name")));
+          }}
+        >
+          <input name="name" placeholder="Nová kategorie (např. Předkrmy)" required />
+          <button type="submit">Přidat kategorii</button>
+        </form>
+      )}
     </main>
   );
 }
