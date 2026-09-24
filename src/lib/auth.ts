@@ -4,6 +4,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { sites, siteMemberships, type SiteRole } from "@/db/schema";
 
+type SiteModules = (typeof sites.$inferSelect)["modules"];
+
 // ---------------------------------------------------------------------------
 // Každá nová admin route/action MUSÍ volat requireSiteAccess — nic jiného
 // v systému neřeší přístup (žádný middleware, viz Data Access Layer vzor).
@@ -47,4 +49,16 @@ export async function requireSiteAccess(
 
 export function hasRole(role: SiteRole, minRole: SiteRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minRole];
+}
+
+// ---------------------------------------------------------------------------
+// Server actions musí respektovat modulový flag stejně jako stránka/API —
+// jinak jde zapisovat podvrženým POSTem do vypnutého modulu (stránka jen
+// zobrazí hlášku, ale samotná akce by bez téhle kontroly prošla).
+// ---------------------------------------------------------------------------
+export function requireModule(
+  site: { modules: SiteModules },
+  module: keyof SiteModules
+): void {
+  if (!site.modules[module]) forbidden();
 }

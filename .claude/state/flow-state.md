@@ -1,10 +1,10 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 2 z ROADMAP.md — otevírací doba (opening_hours + opening_hour_exceptions, /admin/[site]/hours, /api/public/[site]/hours)
-- tier: T2
+- cíl: T1 — requireModule (server actions musí respektovat modulový flag) + vitest pro src/lib/hours.ts
+- tier: T1
 - status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 2 hotová — critic APPROVE, E2E na Neon OK (výjimka přebíjí rozvrh v API, overnight, staff nezmění týden), commit; poznámky v notes/ (Obsidian)
+- poslední dokončený krok: T1 hotovo — requireModule v src/lib/auth.ts, zavolán ve všech akcích menu/hours actions.ts, vitest nainstalován, 30 testů (hours.test.ts) zelených, žádný bug v hours.ts nenalezen, README doplněno o `npm test`, tsc --noEmit a next build OK
 - rozpracovaný soubor + řádek: —
 - další krok: Fáze 3 (eventy) nebo push do kubis3k/admin — podle uživatele
 ## Mapa poznání (co víme o codebase)
@@ -45,5 +45,8 @@
 - src/app/admin/[site]/hours/page.tsx (NOVÝ): requireSiteAccess staff, isOwner řídí editační formuláře týdenního rozvrhu (input type=time), sekce výjimky (budoucí, řazené podle data) + form přidání
 - src/app/api/public/[site]/hours/route.ts (NOVÝ): revalidate 60, 404 site/modul, vrací {site,timezone,today,days (computeEffectiveSchedule od todayInPrague, 14 dní),weekly}
 - src/app/admin/page.tsx: rozcestník teď dotahuje i sites.modules a nabízí odkazy Menu/Otevírací doba podmíněně
+- src/lib/auth.ts: + requireModule(site, module) — forbidden() pokud !site.modules[module]; volat hned po requireSiteAccess ve všech server actions (stránky mají vlastní hlášku, ale bez týhle kontroly by šel podvržený POST zapisovat do vypnutého modulu); typ module = keyof (typeof sites.$inferSelect)["modules"]
+- src/app/admin/[site]/menu/actions.ts + hours/actions.ts: requireModule(site, "menu"/"hours") přidán do všech exportovaných akcí hned po requireSiteAccess
+- vitest (devDependency) + npm script "test": "vitest run"; src/lib/hours.test.ts (30 testů: weekdayOf, addDays, todayInPrague DST, normalizeTime, isValidTime, isValidDate, computeEffectiveSchedule) — čistě relativní import, žádný vitest.config.ts nebyl potřeba (hours.ts nemá "@/" importy)
 ## Otevřené otázky / blokery
 - slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)

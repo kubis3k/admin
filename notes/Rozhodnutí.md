@@ -23,4 +23,6 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - `weekday` 0 = pondělí (český týden), ne JS `getDay()`.
 - 1 okno za den (`unique(site_id, weekday)`); přes půlnoc = `closesAt < opensAt`.
 - **Týdenní rozvrh = owner, výjimky = staff** (nemoc, akce jsou provozní věc).
+- Server actions kontrolují modulový flag (`requireModule`) — platí i zpětně pro menu.
+- Zapínání modulů nedává ownerovi — je to rozhodnutí provozovatele (Fáze 6).
 - Veřejné API vrací 14 dní dopředu už spočítaných (klientský web nemusí nic počítat).

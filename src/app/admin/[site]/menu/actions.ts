@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { menuCategories, menuItems } from "@/db/schema";
-import { requireSiteAccess } from "@/lib/auth";
+import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { forbidden } from "next/navigation";
@@ -25,6 +25,7 @@ function assertValidItem(data: { name: string; priceCents: number }) {
 
 export async function createCategory(siteSlug: string, name: string) {
   const { site } = await requireSiteAccess(siteSlug, "owner");
+  requireModule(site, "menu");
   if (!name.trim()) throw new Error("Název kategorie nesmí být prázdný");
 
   await db.insert(menuCategories).values({ siteId: site.id, name });
@@ -33,6 +34,7 @@ export async function createCategory(siteSlug: string, name: string) {
 
 export async function deleteCategory(categoryId: string, siteSlug: string) {
   const { site } = await requireSiteAccess(siteSlug, "owner");
+  requireModule(site, "menu");
 
   await db
     .delete(menuCategories)
@@ -46,6 +48,7 @@ export async function createItem(
   data: { name: string; priceCents: number; description?: string }
 ) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
   assertValidItem(data);
 
   const category = await db.query.menuCategories.findFirst({
@@ -68,6 +71,7 @@ export async function updateItem(
   data: { name: string; priceCents: number }
 ) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
 
   assertValidItem(data);
   const name = data.name.trim();
@@ -85,6 +89,7 @@ export async function toggleAvailability(
   isAvailable: boolean
 ) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
 
   await db
     .update(menuItems)
@@ -95,6 +100,7 @@ export async function toggleAvailability(
 
 export async function deleteItem(itemId: string, siteSlug: string) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
 
   await db
     .delete(menuItems)

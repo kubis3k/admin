@@ -36,6 +36,7 @@ cp .env.example .env.local   # doplň DATABASE_URL z Neon
 npm run db:generate           # vygeneruje SQL migraci ze schema.ts
 npm run db:migrate            # aplikuje migraci na Neon DB
 npm run dev
+npm test                      # spustí unit testy (vitest)
 ```
 
 Testovací tenant si vytvoř ručně přes `db:studio` (nebo napiš seed script) —

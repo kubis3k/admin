@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { openingHours, openingHourExceptions } from "@/db/schema";
-import { requireSiteAccess } from "@/lib/auth";
+import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { isValidDate, isValidTime } from "@/lib/hours";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -16,6 +16,7 @@ export async function setWeekday(
   hours: { opensAt: string; closesAt: string } | null
 ) {
   const { site } = await requireSiteAccess(siteSlug, "owner");
+  requireModule(site, "hours");
 
   if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
     throw new Error("Neplatný den v týdnu");
@@ -65,6 +66,7 @@ export async function upsertException(
   }
 ) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "hours");
 
   if (!isValidDate(data.date)) {
     throw new Error("Neplatné datum");
@@ -118,6 +120,7 @@ export async function upsertException(
 
 export async function deleteException(exceptionId: string, siteSlug: string) {
   const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "hours");
 
   await db
     .delete(openingHourExceptions)

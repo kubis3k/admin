@@ -13,6 +13,11 @@ Zpět: [[gastro-admin]] · Předchozí: [[Fáze 1 — Auth & role]]
 - Veřejné API `/api/public/[site]/hours` — `days` (14 dní dopředu), `today`, `weekly`
 - Rozcestník `/admin` ukazuje odkazy podle zapnutých modulů
 
+## Dodělávky po review
+- `requireModule(site, modul)` v `src/lib/auth.ts` — všechny server actions menu i hours respektují `sites.modules` (dřív jen stránka a API)
+- Vitest (`npm test`) + `src/lib/hours.test.ts`
+- Zapínání modulů zůstává mimo scope → rozhoduje provozovatel ve [[gastro-admin|Fázi 6]] (např. ADMI má menu vypnuté kvůli ChoiceQR)
+
 ## Pravidla
 - `weekday`: **0 = pondělí … 6 = neděle**
 - Den bez řádku = zavřeno
@@ -32,6 +37,10 @@ Zpět: [[gastro-admin]] · Předchozí: [[Fáze 1 — Auth & role]]
 - ✅ výjimka s vlastními časy (3. 10. 12–16 „Svatba") přebije rozvrh
 - ✅ pátek 18:00–02:00 → `overnight: true`
 - ✅ staff (podvržený POST) nezmění týdenní rozvrh
+- ✅ staff smaže vlastní výjimku → API pro daný den vrátí zpět běžný rozvrh
+- ✅ staff (podvržený POST) nesmaže výjimku cizího webu (IDOR)
+- ✅ vypnutý modul: stránka hlásí „vypnutá", API 404 a podvržený POST do akce neprojde (`requireModule`)
+- ✅ `npm test` — 30 unit testů `hours.ts` (DST, přelom roku, přestupný rok, overnight, výjimky)
 - Critic: APPROVE. P3: `today` v API může být až 60 s po půlnoci starý (ISR cache, stejně jako menu)
 
 Rozhodnutí: [[Rozhodnutí#Fáze 2]]
