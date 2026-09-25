@@ -2,11 +2,11 @@
 ## Aktuální úkol
 - cíl: přestavba UI adminu — Tailwind + shadcn/ui, SaaS shell (sidebar weby→moduly, light/dark), všechny stránky; chyby u polí (useActionState, akce vrací výsledek místo throw), toasty, potvrzení mazání
 - tier: T3 (+ finální critic na opus — mění signatury všech server actions)
-- status: running
+- status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: vlna A (coder) hotová — Tailwind v4+shadcn setup, action-result, sdílené komponenty admin/*, route group admin/(app)/, login, rozcestník, forbidden, error, new-site; tsc+vitest+build zelené
+- poslední dokončený krok: UI adminu hotové — architect (opus) plán, vlna A + 3 paralelní coderi (B1 menu+hours, B2 events+content, B3 gallery+settings), critic (opus) APPROVE, E2E + 2 kola oprav; tsc, 125 testů, build OK; commit 9473ef1 (nepushnutý)
 - rozpracovaný soubor + řádek: —
-- další krok: vlna B (coder): přestylovat zbylé modulové stránky ([site]/menu, hours, events, content, gallery, settings) na shadcn/ActionForm/ConfirmDeleteButton — beze změny autorizace/WHERE/notifySiteChange; bez `next build` (sdílené .next)
+- další krok: živý test uploadu F4 (BLOB_READ_WRITE_TOKEN); jinak ROADMAP i follow-upy hotové
 ## Mapa poznání (co víme o codebase)
 - modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; isSuperadmin (cache, z DB) + requireSuperadmin middleware
 - modul onboarding (F6): src/app/admin/(app)/new-site/{page,form,actions}.tsx + lib/sites.ts (+test) — superadmin (users.is_superadmin), db.batch site+user+membership, magic link po commitu; PO VLNĚ A: actions.ts vrací ActionResult<CreateSiteData> (fieldErrors name/slug/email), form.tsx přes ActionForm
@@ -16,10 +16,9 @@
 - modul content: src/lib/content.ts + src/app/admin/(app)/[site]/content/{page,actions}.ts + src/app/api/public/[site]/content/{route,pageKey}.ts — owner vytvoří (pageKey ^[a-z0-9-]{1,50}$), staff edituje markdown (≤50k); API {pages:[pageKey,updatedAt], [pageKey]→content}; 6 testů — po vlně A jen přesunuto (vlna B)
 - modul gallery: src/lib/upload.ts + src/lib/blob.ts + src/app/admin/(app)/[site]/gallery/{page,actions}.ts + src/app/api/public/[site]/gallery/route.ts — Vercel Blob; staff upload jpeg/png/webp/avif/gif (≤4MB); delete jen isOurBlobUrl; API {images:[id,url,alt]}; 14 testů — po vlně A jen přesunuto (vlna B)
 - settings: src/app/admin/(app)/[site]/settings/{page,form,actions}.tsx — superadmin-only UI (requireSiteAccess+!isSuperadmin→forbidden); updateSiteSettings/updateWebhookUrl/rotateWebhookSecret/sendTestWebhook; src/lib/revalidate.ts exportuje deliverWebhook (sdíleno s notifySiteChange); (app)/page.tsx odkaz „Nastavení" — po vlně A jen přesunuto (vlna B)
-- UI vlna A: src/lib/action-result.ts (ok/fail/ActionResult/ActionState), src/lib/admin-sites.ts (getUserSites, cache) — nové sdílené lib soubory (nejsou v zákazovém seznamu)
-- UI vlna A: src/components/admin/{action-form,field-error,submit-button,confirm-delete-button,theme-toggle,app-sidebar,app-shell}.tsx — ActionForm řídí useActionState+startTransition+toast+FieldErrorsContext; SubmitButton čte pending z kontextu (ne useFormStatus); ConfirmDeleteButton má vlastní useActionState + AlertDialog s controlled open (zavře se po ok)
-- UI vlna A: src/app/admin/(app)/{layout.tsx,sign-out.ts,page.tsx} — layout bez session vrací jen children (redirect dělá page), jinak AppShell(getUserSites); signOutAction v sign-out.ts
-- UI vlna A: src/app/admin/(app)/[site]/, new-site/ přesunuty z src/app/admin/ (route group); login zůstává mimo group (src/app/admin/login/page.tsx)
+- UI shell: src/app/admin/(app)/layout.tsx + components/admin/{app-shell,app-sidebar,theme-toggle,page-header}.tsx + lib/admin-sites.ts (getUserSites) — sidebar web→moduly, superadmin Nastavení/Nový web; login mimo (app)
+- formuláře: lib/action-result.ts (ActionResult ok/fail) + components/admin/{action-form,field-input,field-error,submit-button,confirm-delete-button}.tsx — akce (…ids, prev, formData) → ActionResult, chyby u polí, toasty (sonner)
+- UI knihovny: Tailwind v4 (postcss.config.mjs, app/globals.css), shadcn (components.json, components/ui/*, balíčky cn + radix-ui), next-themes, lib/format.ts (pluralCs, formatDateCs, formatDateTimeCs +test)
 - revalidace (F7): src/lib/public-data.ts (unstable_cache per modul, tag gastro:<slug>:<modul>, 60 s) + src/lib/revalidate.ts (notifySiteChange → revalidateTag + webhook přes after(), exportuje deliverWebhook pro settings) + src/lib/webhook.ts (+test, HMAC) — voláno ze všech 24 mutačních akcí; API routes čtou jen z public-data.ts
 - src/db/schema.ts: sites({name,slug,modules{menu/hours/events/content/gallery bool},webhookUrl,webhookSecret}) + 10 tabulek (users, accounts, sessions, verification_tokens, site_memberships, opening_hours, opening_hour_exceptions, events, page_content, gallery_images); relations kompletní
 - src/db/index.ts + drizzle.config.ts: drizzle neon-http, migrations ./src/db/migrations
@@ -72,6 +71,7 @@
 - [2026-09-25] settings: testovací webhook synchronně (ne after), module "test", tags [], výsledek (status/chyba) do UI
 - [2026-09-25] settings: po rotaci UI skrývá secret z prvního uložení URL (neplatný) — jinak by si uživatel mohl zkopírovat starý
 - [2026-09-25] UI: Tailwind + shadcn/ui, čistý SaaS admin (sidebar), light+dark — volba uživatele
+- [2026-09-25] UI: menu na mobilu jako karty (dostupnost nahoře), rozvrh/výjimky bez vodorovného scrollu; ConfirmDeleteButton volá toast v closure (ne efekt — komponenta se odmontuje se smazaným řádkem)
 - [2026-09-25] UI: Tailwind v4 (@tailwindcss/postcss) + shadcn (neutral, komponenta sidebar), next-themes class, Geist
 - [2026-09-25] Akce: `(…ids, prev: ActionState, formData) => ActionResult` (src/lib/action-result.ts); bind ID v server page → prop do klientské ActionForm; validace = return fail, DB chyba = throw, forbidden/redirect se nechytá
 - [2026-09-25] ActionForm odesílá přes onSubmit+startTransition (React 19 auto-reset by při chybě smazal vstup); reset jen při ok (resetOnSuccess); bez JS admin nefunguje — akceptováno
@@ -81,6 +81,6 @@
 - [2026-09-25] Deviace: shadcn-generované src/components/ui/* importují `cn` z balíčku "cn" a `Slot`/primitives z "radix-ui" (jejich současný standard) — NEUPRAVOVÁNO (bylo by to refaktor mimo zadání + riziko rozbití). Naše vlastní kódy (components/admin/*, budoucí kód) používají `cn()` z `src/lib/utils.ts` (klasická clsx+tailwind-merge implementace, alias "@/lib/utils" dle plánu). Nainstalováno navíc explicitně (CLI je samo nedotáhlo): class-variance-authority, clsx, tailwind-merge, lucide-react (byly použité v generovaném kódu, ale chyběly v package.json)
 - [2026-09-25] src/app/globals.css: `@import "tailwindcss"` + `@import "tw-animate-css"` + kompletní neutral theme tokeny (:root/.dark, oklch) psané ručně dle standardní shadcn v4 šablony (CLI dopsalo jen sidebar tokeny), `@theme inline` mapuje všechny barvy+radius; --font-sans navázán na Geist (next/font/google, funguje i v buildu s síťovým přístupem)
 ## Otevřené otázky / blokery
-- push: commit 724aa04 nepushnutý — Git Credential Manager čeká na přihlášení uživatele
+- push: commit 9473ef1 nepushnutý — Git Credential Manager čeká na přihlášení uživatele
 - Fáze 4: čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele (E2E test)
 - tests.md v rootu — prázdný soubor neznámého původu (asi Obsidian), necommitováno, nemazat bez uživatele
