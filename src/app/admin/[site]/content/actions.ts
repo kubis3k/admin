@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pageContent } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { isValidPageKey, validateContent } from "@/lib/content";
+import { notifySiteChange } from "@/lib/revalidate";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -28,16 +29,21 @@ export async function createPage(siteSlug: string, pageKey: string) {
     throw new Error(`Stránka "${pageKey}" už existuje`);
   }
   revalidatePath(`/admin/${siteSlug}/content`);
+  await notifySiteChange(site, "content", { pageKey });
 }
 
 export async function deletePage(pageId: string, siteSlug: string) {
   const { site } = await requireSiteAccess(siteSlug, "owner");
   requireModule(site, "content");
 
-  await db
+  const deleted = await db
     .delete(pageContent)
-    .where(and(eq(pageContent.id, pageId), eq(pageContent.siteId, site.id)));
+    .where(and(eq(pageContent.id, pageId), eq(pageContent.siteId, site.id)))
+    .returning({ pageKey: pageContent.pageKey });
   revalidatePath(`/admin/${siteSlug}/content`);
+  if (deleted[0]) {
+    await notifySiteChange(site, "content", { pageKey: deleted[0].pageKey });
+  }
 }
 
 export async function savePageContent(
@@ -51,9 +57,13 @@ export async function savePageContent(
   const result = validateContent(content);
   if (!result.ok) throw new Error(result.error);
 
-  await db
+  const updated = await db
     .update(pageContent)
     .set({ content: result.value, updatedAt: new Date() })
-    .where(and(eq(pageContent.id, pageId), eq(pageContent.siteId, site.id)));
+    .where(and(eq(pageContent.id, pageId), eq(pageContent.siteId, site.id)))
+    .returning({ pageKey: pageContent.pageKey });
   revalidatePath(`/admin/${siteSlug}/content`);
+  if (updated[0]) {
+    await notifySiteChange(site, "content", { pageKey: updated[0].pageKey });
+  }
 }

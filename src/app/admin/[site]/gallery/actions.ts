@@ -5,6 +5,7 @@ import { galleryImages } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { uploadImage, deleteImageIfOurs } from "@/lib/blob";
 import { validateAlt } from "@/lib/upload";
+import { notifySiteChange } from "@/lib/revalidate";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -36,6 +37,7 @@ export async function uploadGalleryImage(siteSlug: string, formData: FormData) {
     sortOrder: maxRow + 1,
   });
   revalidatePath(`/admin/${siteSlug}/gallery`);
+  await notifySiteChange(site, "gallery");
 }
 
 export async function updateAlt(imageId: string, siteSlug: string, alt: string) {
@@ -47,6 +49,7 @@ export async function updateAlt(imageId: string, siteSlug: string, alt: string) 
     .set({ alt: validateAlt(alt) })
     .where(and(eq(galleryImages.id, imageId), eq(galleryImages.siteId, site.id)));
   revalidatePath(`/admin/${siteSlug}/gallery`);
+  await notifySiteChange(site, "gallery");
 }
 
 export async function moveImage(
@@ -84,6 +87,7 @@ export async function moveImage(
       .where(and(eq(galleryImages.id, neighbor.id), eq(galleryImages.siteId, site.id))),
   ]);
   revalidatePath(`/admin/${siteSlug}/gallery`);
+  await notifySiteChange(site, "gallery");
 }
 
 export async function deleteGalleryImage(imageId: string, siteSlug: string) {
@@ -99,4 +103,5 @@ export async function deleteGalleryImage(imageId: string, siteSlug: string) {
     await deleteImageIfOurs(deleted[0].url);
   }
   revalidatePath(`/admin/${siteSlug}/gallery`);
+  await notifySiteChange(site, "gallery");
 }

@@ -55,3 +55,10 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - Založení webu = jedna transakce (`db.batch`), mail až po uložení; selhání mailu nic nevrací zpět.
 - E-mail s `,` / `;` odmítnut — Auth.js by ho ořízl a vznikl by účet, na který odkaz nedojde.
 - Úprava modulů existujícího webu zatím jen SQL (rozhodnutí provozovatele) → budoucí `/admin/[site]/settings` jen pro superadmina.
+
+## Fáze 7
+- **Nález:** „60s cache" veřejného API z Fáze 0 nikdy nefungovala (routy byly dynamické) → zavedena skutečná cache přes `unstable_cache` s tagy `gastro:<slug>:<modul>`.
+- Invalidace tagem (`revalidateTag`) místo `revalidatePath` — jeden tag pokryje modul včetně podstránek obsahu.
+- Webhook podepsaný HMAC-SHA256 nad `${ts}.${body}` s tolerancí 300 s (ochrana proti replay); odesílá se přes `after()`, admin nečeká; bez retry — záloha je `revalidate` klienta.
+- Webhook URL nastavuje jen provozovatel (SQL) → SSRF riziko akceptováno; produkce jen `https`.
+- „Dnes" se počítá mimo cache, aby data nezastarala přes půlnoc.

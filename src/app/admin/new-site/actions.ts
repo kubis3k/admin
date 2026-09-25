@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { db } from "@/db";
 import { sites, users, siteMemberships } from "@/db/schema";
 import { requireSuperadmin } from "@/lib/auth";
@@ -12,7 +12,9 @@ import {
   validateSlug,
   normalizeEmail,
   parseModules,
+  MODULE_KEYS,
 } from "@/lib/sites";
+import { revalidateTag as siteModuleTag } from "@/lib/webhook";
 
 export type CreateSiteState = {
   error?: string;
@@ -123,6 +125,8 @@ export async function createSite(
   }
 
   revalidatePath("/admin");
+  // Veřejné API mohlo mít pro tento slug nacachované „site neexistuje" (60 s).
+  for (const key of MODULE_KEYS) revalidateTag(siteModuleTag(slug, key));
 
   const firstModule = (Object.keys(modules) as (keyof typeof modules)[]).find(
     (key) => modules[key]

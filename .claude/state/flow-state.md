@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 6 z ROADMAP.md — onboarding tenanta (superadmin, /admin/new-site, validace slugu)
-- tier: T4
-- status: done
+- cíl: Fáze 7 z ROADMAP.md — on-demand revalidace (revalidatePath vlastního API + podepsaný webhook na klientský web)
+- tier: T3
+- status: hotovo (coder)
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 6 hotová — critic (opus) APPROVE + P3 opraveny (čárka v e-mailu, hláška 1–40), E2E OK, commit+push fa8ff87
+- poslední dokončený krok: F7 eskalace implementována — nový src/lib/public-data.ts (unstable_cache po modulech, tag gastro:<slug>:<modul>, 1 cache záznam/modul, site řádek jen {id,slug,modules} bez webhook polí); všech 6 routes v src/app/api/public/[site]/** přepsáno na public-data.ts (stejné 404/tvar odpovědí), smazán `export const revalidate = 60`; src/lib/revalidate.ts: notifySiteChange volá revalidateTag() (next/cache) místo revalidatePath; apiPathsFor smazáno z webhook.ts + 3 testy z webhook.test.ts (nepotřebné, revalidace jde přes tag ne cestu); README aktualizováno (cache = unstable_cache max 60s + okamžitá invalidace tagem); npm test (106 passed), tsc --noEmit čisté, next build OK (potřeba EMAIL_SERVER v env pro produkční build — nesouvisí s F7, existující požadavek src/auth.ts), .next smazáno
 - rozpracovaný soubor + řádek: —
-- další krok: Fáze 7 (on-demand revalidace) nebo živý test uploadu Fáze 4 až bude BLOB_READ_WRITE_TOKEN
+- další krok: E2E ověření webhooku proti reálnému klientskému webu (mimo scope coder úkolu); zvážit critic review F7 eskalace
 ## Mapa poznání (co víme o codebase)
 - modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; isSuperadmin (cache, z DB) + requireSuperadmin middleware
 - modul onboarding (F6): src/app/admin/new-site/{page,form,actions}.tsx + lib/sites.ts (+test) — superadmin (users.is_superadmin), db.batch site+user+membership, magic link po commitu
@@ -15,12 +15,14 @@
 - modul events: src/lib/events.ts + src/app/admin/[site]/events/{page,actions}.ts + src/app/api/public/[site]/events/route.ts — staff CRUD; staff publikuje (is_published); API jen published+future (Czech time); imageUrl https validace; 10 testů
 - modul content: src/lib/content.ts + src/app/admin/[site]/content/{page,actions}.ts + src/app/api/public/[site]/content/{route,pageKey}.ts — owner vytvoří (pageKey ^[a-z0-9-]{1,50}$), staff edituje markdown (≤50k); API {pages:[pageKey,updatedAt], [pageKey]→content}; 6 testů
 - modul gallery: src/lib/upload.ts + src/lib/blob.ts + src/app/admin/[site]/gallery/{page,actions}.ts + src/app/api/public/[site]/gallery/route.ts — Vercel Blob; staff upload jpeg/png/webp/avif/gif (≤4MB); delete jen isOurBlobUrl; API {images:[id,url,alt]}; 14 testů
-- src/db/schema.ts: sites({name,slug,modules{menu/hours/events/content/gallery bool}}) + 10 tabulek (users, accounts, sessions, verification_tokens, site_memberships, opening_hours, opening_hour_exceptions, events, page_content, gallery_images); relations kompletní
+- modul revalidace (F7): src/lib/webhook.ts (čistá logika: revalidateTag, isValidWebhookUrl, signPayload/verifySignature) + src/lib/revalidate.ts (notifySiteChange: revalidateTag(next/cache) + webhook přes after()) — voláno ze všech mutačních akcí; sites.webhook_url/webhook_secret
+- modul veřejné cache (F7 eskalace): src/lib/public-data.ts — unstable_cache per modul (getPublicMenu/getPublicHoursRaw/getPublicEvents/getPublicContentList/getPublicContentPage/getPublicGallery), diskriminovaný výsledek {status:"no-site"|"disabled"|"ok",data}; volají ho routy v src/app/api/public/[site]/**
+- src/db/schema.ts: sites({name,slug,modules{menu/hours/events/content/gallery bool},webhookUrl,webhookSecret}) + 10 tabulek (users, accounts, sessions, verification_tokens, site_memberships, opening_hours, opening_hour_exceptions, events, page_content, gallery_images); relations kompletní
 - src/db/index.ts + drizzle.config.ts: drizzle neon-http, migrations ./src/db/migrations
 - src/app/admin/page.tsx: rozcestník po login, seznam sites z memberships, podmíněné odkazy dle modules
 - next.config.ts: authInterrupts=true, serverActions.bodySizeLimit=5MB, images.remotePatterns *.blob.vercel-storage.com
 - app/layout.tsx + forbidden.tsx: root layout + 403 stránka
-- migrations: 0000_baseline (sites, menu_*), 0001-0005 (auth, hours, events, content, gallery), 0006_superadmin (users.is_superadmin, sites CHECK sites_slug_format)
+- migrations: 0000_baseline (sites, menu_*), 0001-0005 (auth, hours, events, content, gallery), 0006_superadmin (users.is_superadmin, sites CHECK sites_slug_format), 0007_webhooks (sites.webhook_url, sites.webhook_secret)
 - notes/: Obsidian znalostní báze (detail fází, E2E, rozhodnutí) — ne duplikovat sem
 ## Rozhodnutí (append-only)
 - [2026-09-24] next 15.0.0 → ^15.5: 15.0.0 nejde nainstalovat s react 19 stable; + CVE-2025-29927; + forbidden() pro skutečné 403
@@ -54,6 +56,12 @@
 - [2026-09-25] F6: onboarding = ID z aplikace + db.batch (site, [user], membership owner), mail až po commitu přes signIn("nodemailer",{email,redirect:false,redirectTo:"/admin"}); selhání mailu nevrací zpět
 - [2026-09-25] F6: úprava modulů po vytvoření = mimo scope (SQL); follow-up v notes/
 - [2026-09-25] F6: normalizeEmail odmítá , a ; (Auth.js normalizer bere doménu jen před čárkou → fantomový účet)
+- [2026-09-25] F7: notifySiteChange(slug, module, {pageKey?}) v src/lib/revalidate.ts — revalidatePath API rout + webhook přes after(); voláno ze VŠECH mutačních akcí 5 modulů
+- [2026-09-25] F7: sites.webhook_url + webhook_secret (nullable, nastavuje provozovatel SQL); tag `gastro:<slug>:<module>`; HMAC-SHA256 nad `${ts}.${body}`, hlavičky X-Gastro-Timestamp + X-Gastro-Signature; timeout 5 s, bez retry (fallback 60s cache)
+- [2026-09-25] F7: webhook URL — produkce jen https, http jen localhost v devu; SSRF riziko akceptováno (URL nastavuje jen provozovatel)
+- [2026-09-25] F7 NÁLEZ: /api/public/* je ƒ Dynamic (neon-http fetch bez cache) — `revalidate = 60` nikdy nefungovalo, žádné cache hlavičky; revalidatePath nemá co invalidovat
+- [2026-09-25] F7 eskalace: data API přes unstable_cache (tag gastro:<slug>:<module>, revalidate 60), notifySiteChange → revalidateTag; „dnes" (hours/events) počítat mimo cache
+- [2026-09-25] F7 eskalace hotovo: /api/public/* zůstává ƒ Dynamic v build výstupu i po opravě (to je OK — unstable_cache je Next Data Cache, ne route-level cache, badge ƒ/○ o něm nic neříká); hours cache fetchuje výjimky od včerejška (addDays -1), computeEffectiveSchedule+"dnes" počítá route; events cache = všechny publikované, filtr date>=dnes i ?all=1 v route; apiPathsFor (webhook.ts) smazáno jako nepotřebné — revalidace jde přes revalidateTag, ne revalidatePath cesty
 ## Otevřené otázky / blokery
 - Fáze 4: čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele (E2E test)
 - tests.md v rootu — prázdný soubor neznámého původu (asi Obsidian), necommitováno, nemazat bez uživatele

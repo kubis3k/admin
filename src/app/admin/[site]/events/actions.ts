@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { events } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { validateEventInput, type RawEventInput } from "@/lib/events";
+import { notifySiteChange } from "@/lib/revalidate";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -26,6 +27,7 @@ export async function createEvent(siteSlug: string, raw: RawEventInput) {
     isPublished: result.value.isPublished,
   });
   revalidatePath(`/admin/${siteSlug}/events`);
+  await notifySiteChange(site, "events");
 }
 
 export async function updateEvent(
@@ -52,6 +54,7 @@ export async function updateEvent(
     })
     .where(and(eq(events.id, eventId), eq(events.siteId, site.id)));
   revalidatePath(`/admin/${siteSlug}/events`);
+  await notifySiteChange(site, "events");
 }
 
 export async function setPublished(
@@ -67,6 +70,7 @@ export async function setPublished(
     .set({ isPublished, updatedAt: new Date() })
     .where(and(eq(events.id, eventId), eq(events.siteId, site.id)));
   revalidatePath(`/admin/${siteSlug}/events`);
+  await notifySiteChange(site, "events");
 }
 
 export async function deleteEvent(eventId: string, siteSlug: string) {
@@ -77,4 +81,5 @@ export async function deleteEvent(eventId: string, siteSlug: string) {
     .delete(events)
     .where(and(eq(events.id, eventId), eq(events.siteId, site.id)));
   revalidatePath(`/admin/${siteSlug}/events`);
+  await notifySiteChange(site, "events");
 }

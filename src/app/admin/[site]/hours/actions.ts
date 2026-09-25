@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { openingHours, openingHourExceptions } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { isValidDate, isValidTime } from "@/lib/hours";
+import { notifySiteChange } from "@/lib/revalidate";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -29,6 +30,7 @@ export async function setWeekday(
         and(eq(openingHours.siteId, site.id), eq(openingHours.weekday, weekday))
       );
     revalidatePath(`/admin/${siteSlug}/hours`);
+    await notifySiteChange(site, "hours");
     return;
   }
 
@@ -53,6 +55,7 @@ export async function setWeekday(
     });
 
   revalidatePath(`/admin/${siteSlug}/hours`);
+  await notifySiteChange(site, "hours");
 }
 
 export async function upsertException(
@@ -116,6 +119,7 @@ export async function upsertException(
     });
 
   revalidatePath(`/admin/${siteSlug}/hours`);
+  await notifySiteChange(site, "hours");
 }
 
 export async function deleteException(exceptionId: string, siteSlug: string) {
@@ -131,4 +135,5 @@ export async function deleteException(exceptionId: string, siteSlug: string) {
       )
     );
   revalidatePath(`/admin/${siteSlug}/hours`);
+  await notifySiteChange(site, "hours");
 }

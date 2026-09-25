@@ -44,6 +44,10 @@ export const sites = pgTable(
         gallery: false,
         content: false,
       }),
+    // On-demand revalidace (F7) — provozovatel nastaví ručně v DB (viz README).
+    // Bez nich se použije jen revalidatePath admin API rout (bez webhooku na klienta).
+    webhookUrl: text("webhook_url"),
+    webhookSecret: text("webhook_secret"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({

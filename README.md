@@ -19,6 +19,9 @@ src/
     upload.ts       — čistá logika validace obrázků (validateImageFile, isOurBlobUrl, bez DB/Blob)
     blob.ts         — I/O nad Vercel Blob (uploadImage, deleteImageIfOurs)
     sites.ts        — čistá logika onboardingu (validateSlug, validateSiteName, normalizeEmail, parseModules, bez DB)
+    webhook.ts      — čistá logika on-demand revalidace (tag, validace URL, podpis/ověření, bez DB)
+    revalidate.ts   — notifySiteChange(site, module, opts?) — revalidateTag + podepsaný webhook přes after()
+    public-data.ts  — serverová cache veřejného API (unstable_cache po modulech, tag gastro:<slug>:<modul>, 60s)
   auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
     api/auth/[...nextauth]/route.ts   — Auth.js handlers
@@ -92,21 +95,23 @@ hlásí chybu, zbytek appky funguje beze změny.
   stará hodnota z Blob storage se smaže; externí URL se nemažou)
 - Veřejná API (`/api/public/[site]/menu`, `/api/public/[site]/hours`,
   `/api/public/[site]/events`, `/api/public/[site]/content`,
-  `/api/public/[site]/gallery`) s 60s cache
+  `/api/public/[site]/gallery`) se serverovou cache (`unstable_cache`, max
+  60 s, okamžitá invalidace tagem po uložení v adminu — viz `public-data.ts`)
 - Admin UI s CRUD operacemi přes server actions
 - Onboarding nového tenanta: superadmin (`users.is_superadmin`) založí web
   přes `/admin/new-site` (název, slug, e-mail ownera, moduly) — vznikne
   `sites` + `users` (pokud e-mail ještě neexistuje) + `site_memberships` s
   rolí owner, následně se pošle magic link na zadaný e-mail; úprava modulů
   po vytvoření webu zatím jen ručně v DB (mimo scope F6)
+- On-demand revalidace: každá mutační server akce okamžitě invaliduje cache
+  vlastního veřejného API (`revalidateTag`) a pokud má web nastavený webhook,
+  pošle podepsané upozornění na klientský web, viz níže
 
 ## Co záměrně chybí (TODO, další fáze)
 
 - **Úprava modulů po vytvoření webu** — zatím jen ručně v DB (SQL), bez UI
 - **Reset hesla** — bez hesel vůbec (jen magic link), mimo scope
 - **RSVP/kapacita a opakující se eventy** — mimo scope modulu eventů (F3)
-- **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
-  by šlo rovnou zavolat `revalidateTag()` na klientský web
 - **Komprese/resize obrázků, drag&drop, klientský (direct) upload** — mimo scope
   modulu galerie (F4), upload je jen přes `<input type="file">`
 - **Upload obrázku k eventům** — `events.imageUrl` zůstává jen text pole (URL)
@@ -152,6 +157,102 @@ UPDATE users SET is_superadmin = true WHERE email = 'jmeno@example.com';
 
 Superadmin má také automaticky přístup (jako owner) na jakýkoli existující
 web, i bez `site_memberships` řádku (viz `requireSiteAccess` v `src/lib/auth.ts`).
+
+## On-demand revalidace
+
+Vlastní veřejné API (`/api/public/[site]/[modul]`) je cachované na serveru
+přes `unstable_cache` (viz `src/lib/public-data.ts`), tag `gastro:<slug>:<modul>`,
+max 60 s. Po každé úspěšné mutaci v adminu (menu, hodiny, eventy, obsah, galerie) se:
+
+1. okamžitě zavolá `revalidateTag()` nad tagem daného webu+modulu — další
+   request na vlastní API dostane čerstvá data bez čekání na 60s cache;
+2. pokud má web nastavený `webhook_url` + `webhook_secret`, pošle se (mimo request/
+   response cyklus, přes `after()`) podepsaný POST požadavek na klientský web —
+   ten si podle tagu sám zavolá `revalidateTag()`.
+
+Bez nastaveného webhooku klientský web dál funguje beze změny — jen se spoléhá
+na svou vlastní 60s/1h cache místo okamžité revalidace.
+
+### Nastavení webhooku pro web
+
+Webhook nastavuje provozovatel ručně v DB (žádné admin UI, mimo scope F7):
+
+```sql
+UPDATE sites
+SET webhook_url = 'https://klient.cz/api/revalidate',
+    webhook_secret = '<openssl rand -hex 32>'
+WHERE slug = 'nazev-webu';
+```
+
+`webhook_url` musí být `https://` (v produkci), `http://localhost`/`http://127.0.0.1`
+je povolené jen pro lokální vývoj klientského webu.
+
+### Formát požadavku na klientský web
+
+```
+POST <webhook_url>
+Content-Type: application/json
+X-Gastro-Timestamp: <unix čas v sekundách>
+X-Gastro-Signature: sha256=<hex HMAC-SHA256 nad "{timestamp}.{tělo}", klíč = webhook_secret>
+
+{"site":"nazev-webu","module":"menu","tags":["gastro:nazev-webu:menu"],"pageKey":null,"ts":1234567890}
+```
+
+`tags` obsahuje `gastro:<slug>:<modul>` — tag, který si klientský web přihlásí
+u svých `fetch()` volání přes `next: { tags: [...] }`. Timeout požadavku 5 s,
+bez retry (při výpadku klientský web spadne zpátky na svou vlastní cache).
+
+### Kompletní snippet pro klientský Next.js web
+
+`app/api/revalidate/route.ts` — ověření podpisu a revalidace tagů:
+
+```ts
+import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+const WEBHOOK_SECRET = process.env.GASTRO_WEBHOOK_SECRET!;
+const TOLERANCE_SEC = 300;
+
+export async function POST(req: Request) {
+  const rawBody = await req.text();
+  const timestamp = Number(req.headers.get("X-Gastro-Timestamp"));
+  const signature = req.headers.get("X-Gastro-Signature") ?? "";
+
+  if (!timestamp || Math.abs(Date.now() / 1000 - timestamp) > TOLERANCE_SEC) {
+    return NextResponse.json({ error: "Neplatný timestamp" }, { status: 401 });
+  }
+
+  const expected =
+    "sha256=" +
+    createHmac("sha256", WEBHOOK_SECRET)
+      .update(`${timestamp}.${rawBody}`)
+      .digest("hex");
+
+  const expectedBuf = Buffer.from(expected);
+  const actualBuf = Buffer.from(signature);
+  const valid =
+    expectedBuf.length === actualBuf.length &&
+    timingSafeEqual(expectedBuf, actualBuf);
+
+  if (!valid) {
+    return NextResponse.json({ error: "Neplatný podpis" }, { status: 401 });
+  }
+
+  const { tags } = JSON.parse(rawBody) as { tags: string[] };
+  for (const tag of tags) revalidateTag(tag);
+
+  return NextResponse.json({ revalidated: true });
+}
+```
+
+Fetch dat s tagem (v libovolné komponentě klientského webu):
+
+```ts
+const res = await fetch("https://admin.tvuj-web.cz/api/public/nazev-webu/menu", {
+  next: { tags: ["gastro:nazev-webu:menu"], revalidate: 3600 },
+});
+```
 
 ## Poznámka k ADMI/Strikeland
 

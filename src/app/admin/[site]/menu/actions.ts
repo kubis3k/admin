@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { menuCategories, menuItems } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
 import { uploadImage, deleteImageIfOurs } from "@/lib/blob";
+import { notifySiteChange } from "@/lib/revalidate";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { forbidden } from "next/navigation";
@@ -31,6 +32,7 @@ export async function createCategory(siteSlug: string, name: string) {
 
   await db.insert(menuCategories).values({ siteId: site.id, name });
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function deleteCategory(categoryId: string, siteSlug: string) {
@@ -41,6 +43,7 @@ export async function deleteCategory(categoryId: string, siteSlug: string) {
     .delete(menuCategories)
     .where(and(eq(menuCategories.id, categoryId), eq(menuCategories.siteId, site.id)));
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function createItem(
@@ -64,6 +67,7 @@ export async function createItem(
     description: data.description ?? null,
   });
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function updateItem(
@@ -82,6 +86,7 @@ export async function updateItem(
     .set({ name, priceCents: data.priceCents, updatedAt: new Date() })
     .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function toggleAvailability(
@@ -97,6 +102,7 @@ export async function toggleAvailability(
     .set({ isAvailable, updatedAt: new Date() })
     .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function deleteItem(itemId: string, siteSlug: string) {
@@ -107,6 +113,7 @@ export async function deleteItem(itemId: string, siteSlug: string) {
     .delete(menuItems)
     .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function setItemImage(
@@ -137,6 +144,7 @@ export async function setItemImage(
 
   await deleteImageIfOurs(oldImageUrl);
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
 
 export async function removeItemImage(itemId: string, siteSlug: string) {
@@ -155,4 +163,5 @@ export async function removeItemImage(itemId: string, siteSlug: string) {
 
   await deleteImageIfOurs(item.imageUrl);
   revalidatePath(`/admin/${siteSlug}/menu`);
+  await notifySiteChange(site, "menu");
 }
