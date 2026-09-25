@@ -2,14 +2,14 @@
 ## Aktuální úkol
 - cíl: Fáze 6 z ROADMAP.md — onboarding tenanta (superadmin, /admin/new-site, validace slugu)
 - tier: T4
-- status: running
+- status: done
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: coder implementoval plán F6 kroky 1–9 (schema+migrace, src/lib/sites.ts+testy, requireSuperadmin/isSuperadmin, /admin/new-site, admin/page.tsx, README) — testy 92/92, tsc čisto, build OK
+- poslední dokončený krok: Fáze 6 hotová — critic (opus) APPROVE + P3 opraveny (čárka v e-mailu, hláška 1–40), E2E OK, commit+push fa8ff87
 - rozpracovaný soubor + řádek: —
-- další krok: critic (opus) review F6, pak scribe zápis do notes/
+- další krok: Fáze 7 (on-demand revalidace) nebo živý test uploadu Fáze 4 až bude BLOB_READ_WRITE_TOKEN
 ## Mapa poznání (co víme o codebase)
-- modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; + isSuperadmin (cache, z DB) + requireSuperadmin (F6)
-- modul onboarding (F6): src/lib/sites.ts (validateSlug/validateSiteName/normalizeEmail/parseModules, 26 testů) + src/app/admin/new-site/{page,form,actions}.tsx — jen superadmin; createSite: validace→pre-check slug→db.batch(site,[user],membership owner)→signIn nodemailer redirectTo /admin; 23505 na sites_slug_unique → hláška; admin/page.tsx superadmin vidí všechny sites (leftJoin) + odkaz "+ Nový web"
+- modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; isSuperadmin (cache, z DB) + requireSuperadmin middleware
+- modul onboarding (F6): src/app/admin/new-site/{page,form,actions}.tsx + lib/sites.ts (+test) — superadmin (users.is_superadmin), db.batch site+user+membership, magic link po commitu
 - modul menu: src/app/admin/[site]/menu/{page,actions}.ts + src/app/api/public/[site]/menu/route.ts — staff: create/update/toggle/delete items; owner: + create/delete category; s imageUrl (upload Fáze 4); IDOR-safe inArray check; inline update formulář
 - modul hours: src/lib/hours.ts + src/app/admin/[site]/hours/{page,actions}.ts + src/app/api/public/[site]/hours/route.ts — schedule: týdenní rozvrh (opening_hours, weekday 0-6, owner edit) + výjimky (opening_hour_exceptions, staff edit); computeEffectiveSchedule(weekly,exceptions,from,days), TIMEZONE="Europe/Prague"; API revalidate 60; 30 testů
 - modul events: src/lib/events.ts + src/app/admin/[site]/events/{page,actions}.ts + src/app/api/public/[site]/events/route.ts — staff CRUD; staff publikuje (is_published); API jen published+future (Czech time); imageUrl https validace; 10 testů
@@ -53,5 +53,7 @@
 - [2026-09-25] F6: slug ^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$ + rezervované (login,new-site,new,admin,api,auth,settings) + DB CHECK; souběh → catch 23505 sites_slug_unique
 - [2026-09-25] F6: onboarding = ID z aplikace + db.batch (site, [user], membership owner), mail až po commitu přes signIn("nodemailer",{email,redirect:false,redirectTo:"/admin"}); selhání mailu nevrací zpět
 - [2026-09-25] F6: úprava modulů po vytvoření = mimo scope (SQL); follow-up v notes/
+- [2026-09-25] F6: normalizeEmail odmítá , a ; (Auth.js normalizer bere doménu jen před čárkou → fantomový účet)
 ## Otevřené otázky / blokery
 - Fáze 4: čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele (E2E test)
+- tests.md v rootu — prázdný soubor neznámého původu (asi Obsidian), necommitováno, nemazat bez uživatele
