@@ -4,6 +4,22 @@ Startovní kostra centralizovaného admin portálu pro gastro weby.
 Postavená podle plánu: multi-tenant přes `sites` tabulku, moduly
 zapínané per site (`sites.modules`), první implementovaný modul = **menu**.
 
+## UI
+
+Admin je postavený na **Tailwind CSS v4 + shadcn/ui** (Radix), světlý i tmavý režim
+(`next-themes`, přepínač v hlavičce), font Geist, toasty `sonner`.
+
+- `src/app/admin/(app)/layout.tsx` — sdílený shell: postranní navigace (web → moduly,
+  superadmin navíc Nastavení a Nový web), na mobilu jako vysouvací panel. Route group
+  `(app)` URL nemění; login je mimo.
+- Server actions vrací `ActionResult` (`src/lib/action-result.ts`) místo vyhazování
+  výjimek — validační chyby se zobrazí přímo u polí (`<FieldInput>`, `<FieldError>`),
+  úspěch jako toast. Neočekávané chyby (DB) dál končí na `error.tsx`.
+- Sdílené komponenty v `src/components/admin/`: `ActionForm` (useActionState, zachová
+  vstup při chybě), `SubmitButton`, `ConfirmDeleteButton` (potvrzovací dialog u každého
+  mazání), `PageHeader`, `ThemeToggle`, `AppSidebar`/`AppShell`.
+- shadcn komponenty v `src/components/ui/` (generované CLI, `components.json`).
+
 ## Struktura
 
 ```
@@ -32,22 +48,22 @@ src/
     api/public/[site]/content/[pageKey]/route.ts — veřejné API, obsah jedné stránky (surový markdown)
     api/public/[site]/gallery/route.ts           — veřejné API galerie (id, url, alt)
     admin/login/page.tsx              — přihlašovací stránka (magic link)
-    admin/[site]/menu/
+    admin/(app)/[site]/menu/
       page.tsx      — admin UI (kategorie, položky, dostupnost)
       actions.ts    — server actions (create/update/delete)
-    admin/[site]/hours/
+    admin/(app)/[site]/hours/
       page.tsx      — admin UI (týdenní rozvrh, výjimky)
       actions.ts    — server actions (setWeekday, upsertException, deleteException)
-    admin/[site]/events/
+    admin/(app)/[site]/events/
       page.tsx      — admin UI (nadcházející/proběhlé eventy, publikace)
       actions.ts    — server actions (createEvent, updateEvent, setPublished, deleteEvent)
-    admin/[site]/content/
+    admin/(app)/[site]/content/
       page.tsx      — admin UI (seznam stránek, editace obsahu, založení/smazání)
       actions.ts    — server actions (createPage, savePageContent, deletePage)
-    admin/[site]/gallery/
+    admin/(app)/[site]/gallery/
       page.tsx      — admin UI (upload, mřížka obrázků, alt, pořadí, smazání)
       actions.ts    — server actions (uploadGalleryImage, updateAlt, moveImage, deleteGalleryImage)
-    admin/new-site/
+    admin/(app)/new-site/
       page.tsx      — admin UI, jen pro superadmina (requireSuperadmin)
       form.tsx      — klientský formulář (useActionState)
       actions.ts    — server action createSite (validace, insert site+user+membership, magic link)

@@ -67,3 +67,10 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - `/admin/[site]/settings` jen pro superadmina — moduly jsou rozhodnutí provozovatele, ne ownera.
 - Webhook secret v DB čitelně (podpis HMAC ho potřebuje), uživateli ukázán jen jednou; stránka nikdy nedostane secret (jen `hasSecret`).
 - Testovací webhook synchronně (uživatel chce výsledek hned), automatické notifikace dál přes `after()`.
+
+## UI adminu (follow-up)
+- Tailwind v4 + shadcn/ui, next-themes, Geist — výchozí stack shadcn pro Next 15.5 (volba uživatele).
+- Akce vrací `ActionResult` místo `throw` — chyby u polí; DB chyby dál `throw`; `forbidden()` se nechytá.
+- `ActionForm` přes `startTransition` (ne nativní `<form action>`) — React 19 by při chybě smazal vstup. Admin bez JS nefunguje — akceptováno.
+- Route group `admin/(app)/` se sdíleným layoutem; layout jen zobrazuje, autorizace zůstává v page/akcích.
+- Paralelní coderi nesmí spouštět `next build` (sdílené `.next`).

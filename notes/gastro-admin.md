@@ -4,7 +4,7 @@ tags: [gastro-admin, moc]
 # gastro-admin
 
 Centrální admin pro gastro weby (multi-tenant přes `sites`, moduly per site).
-Stack: Next.js 15.5 (App Router), Drizzle, Neon Postgres, Auth.js v5.
+Stack: Next.js 15.5 (App Router), Drizzle, Neon Postgres, Auth.js v5, Tailwind v4 + shadcn/ui.
 
 ## Fáze
 | Fáze | Stav | Poznámka |
@@ -24,7 +24,8 @@ Zadání fází: `ROADMAP.md` v rootu.
 | Téma | Stav | Poznámka |
 |---|---|---|
 | Nastavení webu (superadmin) | ✅ ověřeno E2E | [[Nastavení webu (superadmin)]] |
-| Chyby validace přímo ve formulářích | ⏳ | dluh z [[Fáze 3 — Eventy]] |
+| Chyby validace přímo ve formulářích | ✅ | součást [[UI adminu]] |
+| UI adminu (Tailwind + shadcn) | ✅ ověřeno E2E | [[UI adminu]] |
 
 ## Rychlé odkazy
 - [[Rozhodnutí]] — log architektonických rozhodnutí
