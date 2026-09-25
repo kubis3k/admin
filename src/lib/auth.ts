@@ -1,17 +1,44 @@
+import { cache } from "react";
 import { redirect, forbidden } from "next/navigation";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { sites, siteMemberships, type SiteRole } from "@/db/schema";
+import { sites, siteMemberships, users, type SiteRole } from "@/db/schema";
 
 type SiteModules = (typeof sites.$inferSelect)["modules"];
 
 // ---------------------------------------------------------------------------
 // Každá nová admin route/action MUSÍ volat requireSiteAccess — nic jiného
 // v systému neřeší přístup (žádný middleware, viz Data Access Layer vzor).
-// Nastavení webu (site.modules) je vyhrazené pro roli "owner".
+// Nastavení webu (site.modules) je zatím vyhrazené pro roli "owner" a
+// superadmina (owner moduly zapíná provozovatel/superadmin ručně, viz F6).
 // ---------------------------------------------------------------------------
 const ROLE_RANK: Record<SiteRole, number> = { staff: 1, owner: 2 };
+
+// cache() dedupuje dotaz v rámci jednoho requestu — na session.user se
+// nespoléháme (flag by se v ní musel invalidovat), vždy čteme z DB.
+export const isSuperadmin = cache(async (userId: string): Promise<boolean> => {
+  const row = await db
+    .select({ isSuperadmin: users.isSuperadmin })
+    .from(users)
+    .where(eq(users.id, userId))
+    .then((rows) => rows[0]);
+  return row?.isSuperadmin ?? false;
+});
+
+export async function requireSuperadmin() {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect(
+      `/admin/login?callbackUrl=${encodeURIComponent("/admin/new-site")}`
+    );
+  }
+
+  if (!(await isSuperadmin(session.user.id))) forbidden();
+
+  return { userId: session.user.id };
+}
 
 export async function requireSiteAccess(
   siteSlug: string,
@@ -23,6 +50,21 @@ export async function requireSiteAccess(
     redirect(
       `/admin/login?callbackUrl=${encodeURIComponent(`/admin/${encodeURIComponent(siteSlug)}/menu`)}`
     );
+  }
+
+  // Superadmin má přístup na jakýkoli existující web bez membershipu —
+  // efektivně jako owner (ale isSuperadmin:true, kdyby volající potřeboval rozlišit).
+  if (await isSuperadmin(session.user.id)) {
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.slug, siteSlug),
+    });
+    if (!site) forbidden();
+    return {
+      userId: session.user.id,
+      site,
+      role: "owner" as const,
+      isSuperadmin: true,
+    };
   }
 
   const row = await db
@@ -44,7 +86,12 @@ export async function requireSiteAccess(
 
   if (ROLE_RANK[row.role] < ROLE_RANK[minRole]) forbidden();
 
-  return { userId: row.userId, site: row.site, role: row.role };
+  return {
+    userId: row.userId,
+    site: row.site,
+    role: row.role,
+    isSuperadmin: false,
+  };
 }
 
 export function hasRole(role: SiteRole, minRole: SiteRole): boolean {

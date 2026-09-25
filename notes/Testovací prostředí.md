@@ -21,6 +21,8 @@ Zpět: [[gastro-admin]]
 | `owner@test.cz` | owner na `bistro` |
 | `staff@test.cz` | staff na `bistro` |
 | `nikdo@test.cz` | bez membership (test 403) |
+| `super@test.cz` | **superadmin** (`is_superadmin = true`) |
+| `novy.owner@test.cz` | owner na `pizzerie-u-mostu` (vytvořeno onboardingem) |
 
 ## Přihlášení v devu
 Bez `EMAIL_SERVER` se magic link neposílá, jen vypíše do konzole dev serveru:

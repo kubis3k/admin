@@ -18,6 +18,7 @@ src/
     content.ts      — čistá logika textového obsahu (isValidPageKey, validateContent, bez DB)
     upload.ts       — čistá logika validace obrázků (validateImageFile, isOurBlobUrl, bez DB/Blob)
     blob.ts         — I/O nad Vercel Blob (uploadImage, deleteImageIfOurs)
+    sites.ts        — čistá logika onboardingu (validateSlug, validateSiteName, normalizeEmail, parseModules, bez DB)
   auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
     api/auth/[...nextauth]/route.ts   — Auth.js handlers
@@ -43,6 +44,10 @@ src/
     admin/[site]/gallery/
       page.tsx      — admin UI (upload, mřížka obrázků, alt, pořadí, smazání)
       actions.ts    — server actions (uploadGalleryImage, updateAlt, moveImage, deleteGalleryImage)
+    admin/new-site/
+      page.tsx      — admin UI, jen pro superadmina (requireSuperadmin)
+      form.tsx      — klientský formulář (useActionState)
+      actions.ts    — server action createSite (validace, insert site+user+membership, magic link)
 ```
 
 ## Jak spustit
@@ -89,11 +94,16 @@ hlásí chybu, zbytek appky funguje beze změny.
   `/api/public/[site]/events`, `/api/public/[site]/content`,
   `/api/public/[site]/gallery`) s 60s cache
 - Admin UI s CRUD operacemi přes server actions
+- Onboarding nového tenanta: superadmin (`users.is_superadmin`) založí web
+  přes `/admin/new-site` (název, slug, e-mail ownera, moduly) — vznikne
+  `sites` + `users` (pokud e-mail ještě neexistuje) + `site_memberships` s
+  rolí owner, následně se pošle magic link na zadaný e-mail; úprava modulů
+  po vytvoření webu zatím jen ručně v DB (mimo scope F6)
 
 ## Co záměrně chybí (TODO, další fáze)
 
-- **Onboarding nového tenanta** — zatím se site vytváří ručně v DB
-- **Superadmin role, reset hesla** — mimo scope, řeší se to per-site rolí owner/staff
+- **Úprava modulů po vytvoření webu** — zatím jen ručně v DB (SQL), bez UI
+- **Reset hesla** — bez hesel vůbec (jen magic link), mimo scope
 - **RSVP/kapacita a opakující se eventy** — mimo scope modulu eventů (F3)
 - **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
   by šlo rovnou zavolat `revalidateTag()` na klientský web
@@ -126,6 +136,22 @@ pokud pro něj existuje účet, přijde odkaz. Bez nastaveného `EMAIL_SERVER`
 Migrace: `0000_baseline` = stávající tabulky (sites, menu). Pokud DB vznikla
 přes `drizzle-kit push` bez migrací, označ 0000 jako aplikovanou (nebo pusť
 jen `0001_auth.sql`), jinak `db:migrate` spadne na existujících tabulkách.
+
+## Superadmin
+
+Superadmin může zakládat nové weby (`/admin/new-site`) — globální oprávnění
+napříč všemi weby, nesouvisí s per-site rolí owner/staff. Nastavuje se ručně
+v DB (uživatel musí nejdřív existovat):
+
+```sql
+-- e-mail vždy malými písmeny (hlídá to CHECK constraint)
+INSERT INTO users (email) VALUES ('jmeno@example.com')
+  ON CONFLICT (email) DO NOTHING;
+UPDATE users SET is_superadmin = true WHERE email = 'jmeno@example.com';
+```
+
+Superadmin má také automaticky přístup (jako owner) na jakýkoli existující
+web, i bez `site_memberships` řádku (viz `requireSiteAccess` v `src/lib/auth.ts`).
 
 ## Poznámka k ADMI/Strikeland
 

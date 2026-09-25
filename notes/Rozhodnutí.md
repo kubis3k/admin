@@ -47,3 +47,11 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - Blob mazat jen pro naši doménu; chyba mazání nesmí shodit akci.
 - `serverActions.bodySizeLimit = "5mb"` globálně — jiné akce velká data nepřijímají.
 - Blob store nešlo založit přes Vercel MCP (403, chybí oprávnění) → zakládá uživatel.
+
+## Fáze 6
+- **Superadmin = `users.is_superadmin`, ne hodnota v `site_role`** (odchylka od ROADMAP): role v enumu je vázaná na web (membership) — superadmin by potřeboval membership na každém webu včetně těch, které teprve zakládá. Globální oprávnění ≠ role na webu.
+- První superadmin vzniká ručním SQL (stejný model jako ostatní účty); v UI nejde nikoho povýšit.
+- Superadmin v `requireSiteAccess` = efektivní owner na každém existujícím webu; `requireModule` platí i pro něj.
+- Založení webu = jedna transakce (`db.batch`), mail až po uložení; selhání mailu nic nevrací zpět.
+- E-mail s `,` / `;` odmítnut — Auth.js by ho ořízl a vznikl by účet, na který odkaz nedojde.
+- Úprava modulů existujícího webu zatím jen SQL (rozhodnutí provozovatele) → budoucí `/admin/[site]/settings` jen pro superadmina.

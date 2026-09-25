@@ -22,28 +22,39 @@ import { relations, sql } from "drizzle-orm";
 // Příklad: { menu: true, hours: false, events: false, gallery: false, content: false }
 // U ADMI/Strikeland by menu bylo `false`, protože drží ChoiceQR.
 // ---------------------------------------------------------------------------
-export const sites = pgTable("sites", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  slug: text("slug").notNull().unique(), // např. "admi", "strikeland"
-  name: text("name").notNull(),
-  modules: jsonb("modules")
-    .$type<{
-      menu: boolean;
-      hours: boolean;
-      events: boolean;
-      gallery: boolean;
-      content: boolean;
-    }>()
-    .notNull()
-    .default({
-      menu: false,
-      hours: false,
-      events: false,
-      gallery: false,
-      content: false,
-    }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const sites = pgTable(
+  "sites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(), // např. "admi", "strikeland"
+    name: text("name").notNull(),
+    modules: jsonb("modules")
+      .$type<{
+        menu: boolean;
+        hours: boolean;
+        events: boolean;
+        gallery: boolean;
+        content: boolean;
+      }>()
+      .notNull()
+      .default({
+        menu: false,
+        hours: false,
+        events: false,
+        gallery: false,
+        content: false,
+      }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    // Stejný formát jako src/lib/sites.ts SLUG_RE — DB je poslední pojistka
+    // (aplikace validuje před insertem, tohle chrání proti obejití/ruční editaci).
+    slugFormat: check(
+      "sites_slug_format",
+      sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$'`
+    ),
+  })
+);
 
 // ---------------------------------------------------------------------------
 // MENU KATEGORIE — např. "Předkrmy", "Hlavní jídla", "Poledni menu"
@@ -90,6 +101,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
+  // Globální oprávnění napříč weby (zakládá nové weby, viz src/lib/auth.ts
+  // requireSuperadmin) — nastavuje se ručně v DB (viz README, sekce Superadmin).
+  isSuperadmin: boolean("is_superadmin").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => ({
   // Auth.js normalizuje e-mail na lowercase — jinak by se ručně vložený

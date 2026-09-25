@@ -43,6 +43,13 @@
       "when": 1790339967399,
       "tag": "0005_gallery",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790340526241,
+      "tag": "0006_superadmin",
+      "breakpoints": true
     }
   ]
 }

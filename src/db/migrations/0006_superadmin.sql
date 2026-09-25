@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "is_superadmin" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "sites" ADD CONSTRAINT "sites_slug_format" CHECK ("sites"."slug" ~ '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$');

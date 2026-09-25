@@ -1,28 +1,27 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 4 z ROADMAP.md — galerie + upload (Vercel Blob), gallery_images, /admin/[site]/gallery, upload i pro menu položky
-- tier: T2
+- cíl: Fáze 6 z ROADMAP.md — onboarding tenanta (superadmin, /admin/new-site, validace slugu)
+- tier: T4
 - status: running
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 4 hotová (kód + migrace 0005_gallery aplikována); test/tsc/build zelené i bez BLOB_READ_WRITE_TOKEN
+- poslední dokončený krok: coder implementoval plán F6 kroky 1–9 (schema+migrace, src/lib/sites.ts+testy, requireSuperadmin/isSuperadmin, /admin/new-site, admin/page.tsx, README) — testy 92/92, tsc čisto, build OK
 - rozpracovaný soubor + řádek: —
-- další krok: až uživatel doplní BLOB_READ_WRITE_TOKEN → E2E ověřit živý upload (galerie i menu obrázek) a commit/push
+- další krok: critic (opus) review F6, pak scribe zápis do notes/
 ## Mapa poznání (co víme o codebase)
-- src/db/schema.ts: sites, menu_categories, menu_items (beze změny) + users, accounts, sessions, verification_tokens (Auth.js/@auth/drizzle-adapter Postgres schéma, snake_case sloupce) + siteRole enum("owner","staff") + site_memberships (composite PK user_id+site_id, index na site_id); relations rozšířené o memberships
-- src/db/index.ts: drizzle neon-http, export db (se schema)
-- src/auth.ts (NOVÝ): NextAuth v5, DrizzleAdapter, session strategy "database", Nodemailer provider s vlastní sendVerificationRequest (tichý skip pro neexistující e-mail, dev fallback console.log bez EMAIL_SERVER), callbacks.signIn ověřuje existenci usera; pages → /admin/login
-- src/lib/auth.ts: requireSiteAccess(siteSlug, minRole) — auth() → redirect /admin/login pokud bez session; 1 dotaz innerJoin site_memberships+sites; forbidden() při chybějícím řádku nebo nedostatečné roli; hasRole() pro UI; ROLE_RANK staff=1 owner=2
-- src/app/admin/[site]/menu/actions.ts: createCategory/deleteCategory = "owner"; createItem/updateItem/toggleAvailability/deleteItem = "staff"; itemsOfSite(siteId) subquery pro ownership check přes inArray (oprava IDOR)
-- src/app/admin/[site]/menu/page.tsx: requireSiteAccess místo vlastního findFirst; isOwner = hasRole(role,"owner") řídí zobrazení kategorie formulářů; přidán inline update formulář pro název+cenu položky
-- src/app/admin/login/page.tsx (NOVÝ): server component, signIn("nodemailer")/signOut inline server actions, safeCallbackUrl() proti open redirectu
-- src/app/api/auth/[...nextauth]/route.ts (NOVÝ): export GET/POST z handlers
-- src/app/admin/page.tsx (NOVÝ): rozcestník po přihlášení — seznam webů z memberships
-- src/app/layout.tsx (NOVÝ): minimální root layout, html lang="cs"
-- src/app/forbidden.tsx (NOVÝ): 403 stránka + odkaz na /admin/login
-- next.config.ts (NOVÝ): experimental.authInterrupts = true
-- src/app/api/public/[site]/menu/route.ts: veřejné API, beze změny
-- drizzle.config.ts: out ./src/db/migrations
-- src/auth.ts: `next build` (NODE_ENV=production) vyžaduje EMAIL_SERVER — záměrný fail-fast; v devu bez něj placeholder + odkaz do konzole
+- modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; + isSuperadmin (cache, z DB) + requireSuperadmin (F6)
+- modul onboarding (F6): src/lib/sites.ts (validateSlug/validateSiteName/normalizeEmail/parseModules, 26 testů) + src/app/admin/new-site/{page,form,actions}.tsx — jen superadmin; createSite: validace→pre-check slug→db.batch(site,[user],membership owner)→signIn nodemailer redirectTo /admin; 23505 na sites_slug_unique → hláška; admin/page.tsx superadmin vidí všechny sites (leftJoin) + odkaz "+ Nový web"
+- modul menu: src/app/admin/[site]/menu/{page,actions}.ts + src/app/api/public/[site]/menu/route.ts — staff: create/update/toggle/delete items; owner: + create/delete category; s imageUrl (upload Fáze 4); IDOR-safe inArray check; inline update formulář
+- modul hours: src/lib/hours.ts + src/app/admin/[site]/hours/{page,actions}.ts + src/app/api/public/[site]/hours/route.ts — schedule: týdenní rozvrh (opening_hours, weekday 0-6, owner edit) + výjimky (opening_hour_exceptions, staff edit); computeEffectiveSchedule(weekly,exceptions,from,days), TIMEZONE="Europe/Prague"; API revalidate 60; 30 testů
+- modul events: src/lib/events.ts + src/app/admin/[site]/events/{page,actions}.ts + src/app/api/public/[site]/events/route.ts — staff CRUD; staff publikuje (is_published); API jen published+future (Czech time); imageUrl https validace; 10 testů
+- modul content: src/lib/content.ts + src/app/admin/[site]/content/{page,actions}.ts + src/app/api/public/[site]/content/{route,pageKey}.ts — owner vytvoří (pageKey ^[a-z0-9-]{1,50}$), staff edituje markdown (≤50k); API {pages:[pageKey,updatedAt], [pageKey]→content}; 6 testů
+- modul gallery: src/lib/upload.ts + src/lib/blob.ts + src/app/admin/[site]/gallery/{page,actions}.ts + src/app/api/public/[site]/gallery/route.ts — Vercel Blob; staff upload jpeg/png/webp/avif/gif (≤4MB); delete jen isOurBlobUrl; API {images:[id,url,alt]}; 14 testů
+- src/db/schema.ts: sites({name,slug,modules{menu/hours/events/content/gallery bool}}) + 10 tabulek (users, accounts, sessions, verification_tokens, site_memberships, opening_hours, opening_hour_exceptions, events, page_content, gallery_images); relations kompletní
+- src/db/index.ts + drizzle.config.ts: drizzle neon-http, migrations ./src/db/migrations
+- src/app/admin/page.tsx: rozcestník po login, seznam sites z memberships, podmíněné odkazy dle modules
+- next.config.ts: authInterrupts=true, serverActions.bodySizeLimit=5MB, images.remotePatterns *.blob.vercel-storage.com
+- app/layout.tsx + forbidden.tsx: root layout + 403 stránka
+- migrations: 0000_baseline (sites, menu_*), 0001-0005 (auth, hours, events, content, gallery), 0006_superadmin (users.is_superadmin, sites CHECK sites_slug_format)
+- notes/: Obsidian znalostní báze (detail fází, E2E, rozhodnutí) — ne duplikovat sem
 ## Rozhodnutí (append-only)
 - [2026-09-24] next 15.0.0 → ^15.5: 15.0.0 nejde nainstalovat s react 19 stable; + CVE-2025-29927; + forbidden() pro skutečné 403
 - [2026-09-24] 0000_baseline = stávající tabulky, auth tabulky jdou do 0001 (DB vytvořená přes push si 0000 označí jako aplikovanou)
@@ -39,55 +38,20 @@
 - [2026-09-24] F2: sloupce pg `time` (HH:MM) a `date` (mode string); unique(site_id, date) u výjimek + CHECK is_closed OR oba časy
 - [2026-09-24] F2: role — týdenní rozvrh = owner, výjimky = staff (provozní věc: nemoc, akce)
 - [2026-09-24] F2: čistá funkce computeEffectiveSchedule v src/lib/hours.ts; „dnes" počítané v Europe/Prague
-- src/db/schema.ts: + openingHours ("opening_hours": id, site_id FK cascade, weekday int 0-6 CHECK, opens_at/closes_at time, unique(site_id,weekday), CHECK opens_at<>closes_at) + openingHourExceptions ("opening_hour_exceptions": id, site_id FK cascade, date string mode, is_closed bool, custom_opens_at/custom_closes_at time nullable, reason text, unique(site_id,date), CHECK is_closed OR oba časy not null); relations rozšířené (sitesRelations.openingHours/openingHourExceptions, +2 nové relations objekty)
-- src/lib/hours.ts (NOVÝ): čistá logika bez DB/importů z "@/…" — TIMEZONE="Europe/Prague", WEEKDAY_NAMES (Pondělí..Neděle), todayInPrague, weekdayOf, addDays, normalizeTime, isValidTime, isValidDate, computeEffectiveSchedule(weekly, exceptions, from, days) — výjimka přebíjí weekly, bez řádku = zavřeno; ověřeno jednorázovým node skriptem (vše OK)
-- src/app/admin/[site]/hours/actions.ts (NOVÝ): setWeekday (owner, null=delete jinak onConflictDoUpdate target [siteId,weekday]), upsertException (staff, onConflictDoUpdate target [siteId,date], reason trim+max200), deleteException (staff, IDOR-safe where id+siteId)
-- src/app/admin/[site]/hours/page.tsx (NOVÝ): requireSiteAccess staff, isOwner řídí editační formuláře týdenního rozvrhu (input type=time), sekce výjimky (budoucí, řazené podle data) + form přidání
-- src/app/api/public/[site]/hours/route.ts (NOVÝ): revalidate 60, 404 site/modul, vrací {site,timezone,today,days (computeEffectiveSchedule od todayInPrague, 14 dní),weekly}
-- src/app/admin/page.tsx: rozcestník teď dotahuje i sites.modules a nabízí odkazy Menu/Otevírací doba podmíněně
-- src/lib/auth.ts: + requireModule(site, module) — forbidden() pokud !site.modules[module]; volat hned po requireSiteAccess ve všech server actions (stránky mají vlastní hlášku, ale bez týhle kontroly by šel podvržený POST zapisovat do vypnutého modulu); typ module = keyof (typeof sites.$inferSelect)["modules"]
-- src/app/admin/[site]/menu/actions.ts + hours/actions.ts: requireModule(site, "menu"/"hours") přidán do všech exportovaných akcí hned po requireSiteAccess
-- vitest (devDependency) + npm script "test": "vitest run"; src/lib/hours.test.ts (30 testů: weekdayOf, addDays, todayInPrague DST, normalizeTime, isValidTime, isValidDate, computeEffectiveSchedule) — čistě relativní import, žádný vitest.config.ts nebyl potřeba (hours.ts nemá "@/" importy)
 - [2026-09-24] F3: events.date = pg date (mode string) + start_time time nullable — místní čas Prahy, žádné TZ převody (jako hours)
 - [2026-09-24] F3: role — staff plný CRUD eventů vč. publikace (jako položky menu)
 - [2026-09-24] F3: veřejné API = jen is_published, date >= dnes (Praha), řazeno date+start_time asc; ?all=1 i minulé
 - [2026-09-24] F3: imageUrl jen text s validací http(s) — upload až Fáze 4
-- src/db/schema.ts: + events ("events": id, site_id FK sites cascade, title text notNull, description text nullable, date date(mode string) notNull, start_time time nullable, image_url text nullable, is_published bool notNull default false, created_at, updated_at; index (site_id,date); CHECK char_length(title) between 1 and 200); sitesRelations.events + eventsRelations (site)
-- src/lib/events.ts (NOVÝ, bez "@/" importů): validateEventInput(raw) → {ok:true,value}|{ok:false,error} — title trim 1–200, description trim ≤5000 (prázdné→null), date/startTime přes isValidDate/isValidTime z ./hours (relativní import), imageUrl prázdné→null jinak jen http(s) URL (new URL, ≤2000 znaků), isPublished bool default false; src/lib/events.test.ts (10 testů)
-- src/app/admin/[site]/events/actions.ts (NOVÝ): createEvent/updateEvent/setPublished/deleteEvent — všechny requireSiteAccess(siteSlug,"staff") + requireModule(site,"events"); update/setPublished/delete IDOR-safe přes and(id, siteId=site.id); updatedAt = new Date()
-- src/app/admin/[site]/events/page.tsx (NOVÝ): requireSiteAccess staff, hláška při vypnutém modulu; sekce Nadcházející (date>=todayInPrague, asc) a Proběhlé (date<today, desc, limit 20); sdílená komponenta EventItem s inline <details> edit formulářem; inline "use server" wrappery jako u hours
-- src/app/api/public/[site]/events/route.ts (NOVÝ): revalidate 60, 404 site/modul; jen is_published=true, bez `?all=1` jen date>=todayInPrague(); řazení date asc, start_time asc nulls first (raw sql); vrací {site,timezone,events:[{id,title,description,date,startTime|null,imageUrl}]} — bez isPublished/createdAt/siteId
-- src/app/admin/page.tsx: rozcestník + odkaz "Eventy" když modules.events
-- README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F3
-- migrace 0003_events.sql vygenerována a aplikována (jen CREATE TABLE events + FK + index)
 - [2026-09-24] F5: nový klíč sites.modules.content (chybějící = vypnuto)
 - [2026-09-24] F5: owner zakládá/maže stránky (pageKey), staff edituje obsah
 - [2026-09-24] F5: API vrací surový markdown (bez HTML na serveru → bez XSS); pageKey /^[a-z0-9-]{1,50}$/, obsah ≤ 50 000 znaků
-- src/db/schema.ts: sites.modules + content:boolean (default false); + pageContent ("page_content": id, site_id FK cascade, page_key text notNull, content text notNull default '', created_at, updated_at; unique(site_id,page_key); CHECK page_key ~ '^[a-z0-9-]{1,50}$'); sitesRelations.pageContent + pageContentRelations (site)
-- src/lib/content.ts (NOVÝ, bez "@/" importů): PAGE_KEY_RE, isValidPageKey, MAX_CONTENT_LENGTH=50000, validateContent(s) — normalizuje jen \r\n→\n, jinak beze změny; src/lib/content.test.ts (6 testů: klíče, hranice délky, CRLF)
-- src/app/admin/[site]/content/actions.ts (NOVÝ): createPage (owner, kontrola duplicity pageKey PŘED insertem → hezká chyba místo 500 z unique), deletePage (owner, IDOR-safe and(id,siteId)), savePageContent (staff, IDOR-safe, updatedAt); všechny requireSiteAccess + requireModule(site,"content")
-- src/app/admin/[site]/content/page.tsx (NOVÝ): requireSiteAccess staff, isOwner řídí form "Nová stránka" a tlačítko "Smazat"; textarea rows=12 + Uložit pro staff i owner; hláška při vypnutém modulu; poznámka "Obsah je v Markdownu"
-- src/app/api/public/[site]/content/route.ts (NOVÝ): revalidate 60, 404 site/modul; {site,pages:[{pageKey,updatedAt}]}
-- src/app/api/public/[site]/content/[pageKey]/route.ts (NOVÝ): neplatný pageKey → 404 bez DB dotazu; jinak {site,pageKey,content,updatedAt} nebo 404
-- src/app/admin/page.tsx: rozcestník + odkaz "Obsah stránek" když modules.content
-- README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F5 (rich-text/náhled/verzování mimo scope)
-- migrace 0004_content.sql vygenerována a aplikována (CREATE TABLE page_content + FK + ALTER sites.modules default; nic jiného)
 - [2026-09-25] F4: upload přes server action + put() (@vercel/blob), max 4 MB (limit těla funkce 4,5 MB), jpeg/png/webp/avif/gif
 - [2026-09-25] F4: blob se maže jen když URL je náš *.public.blob.vercel-storage.com (stará imageUrl může být cokoli)
 - [2026-09-25] F4: role — galerie i obrázky menu = staff; next/image s remotePatterns na Blob doménu
-- @vercel/blob nainstalován (^2.8.0)
-- src/db/schema.ts: + galleryImages ("gallery_images": id, site_id FK cascade, url text notNull, pathname text notNull, alt text notNull default '', sort_order int notNull default 0, created_at; index (site_id,sort_order)); sitesRelations.galleryImages + galleryImagesRelations
-- src/lib/upload.ts (NOVÝ, bez "@/" importů): ALLOWED_IMAGE_TYPES (jpeg/png/webp/avif/gif, ne svg), MAX_IMAGE_BYTES=4MB, validateImageFile, isOurBlobUrl (https + hostname endsWith .public.blob.vercel-storage.com), validateAlt (trim+slice 300); + upload.test.ts (14 testů)
-- src/lib/blob.ts (NOVÝ, server-only I/O): uploadImage(file,prefix) → validuje přes upload.ts, put() s crypto.randomUUID() názvem, throw když chybí BLOB_READ_WRITE_TOKEN; deleteImageIfOurs(url) → del() jen když isOurBlobUrl, chybu jen loguje (žádné "server-only" npm balíčku — není v deps, vynecháno)
-- src/app/admin/[site]/gallery/actions.ts (NOVÝ): uploadGalleryImage/updateAlt/moveImage/deleteGalleryImage — vše staff + requireModule(site,"gallery"); moveImage přes db.batch (2 UPDATE, neon-http nemá interaktivní transakce) prohodí sort_order se sousedem; delete používá .returning() pak deleteImageIfOurs
-- src/app/admin/[site]/gallery/page.tsx (NOVÝ): upload form (input file + alt), mřížka obrázků přes next/image, per-obrázek alt edit/↑/↓/smazat
-- src/app/admin/[site]/menu/actions.ts: + setItemImage(itemId,siteSlug,formData) a removeItemImage — staff + requireModule(menu), IDOR přes categoryIdsOfSite; nahrazuje starou imageUrl a maže ji z Blob jen když isOurBlobUrl
-- src/app/admin/[site]/menu/page.tsx: + náhled 64×64 (jen když isOurBlobUrl), inline upload/"Odebrat obrázek" formuláře u položky
-- src/app/api/public/[site]/gallery/route.ts (NOVÝ): revalidate 60, 404 site/modul, {site,images:[{id,url,alt}]} řazeno sort_order,created_at asc
-- next.config.ts: + images.remotePatterns (*.public.blob.vercel-storage.com) + experimental.serverActions.bodySizeLimit="5mb" (default 1MB nestačí na 4MB upload)
-- src/app/admin/page.tsx: + odkaz "Galerie" když modules.gallery
-- .env.example: + BLOB_READ_WRITE_TOKEN s komentářem; README aktualizováno (struktura, hotové/chybí, poznámka o 4MB limitu)
-- migrace 0005_gallery.sql vygenerována a aplikována (jen CREATE TABLE gallery_images + FK + index)
+- [2026-09-25] F6: superadmin = users.is_superadmin (ne hodnota v site_role enumu — globální oprávnění ≠ role na webu, odchylka od ROADMAP); bootstrap ručním SQL
+- [2026-09-25] F6: superadmin v requireSiteAccess přeskočí membership → efektivní role owner + isSuperadmin:true; requireModule platí dál; neexistující site = 403 i pro něj
+- [2026-09-25] F6: slug ^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$ + rezervované (login,new-site,new,admin,api,auth,settings) + DB CHECK; souběh → catch 23505 sites_slug_unique
+- [2026-09-25] F6: onboarding = ID z aplikace + db.batch (site, [user], membership owner), mail až po commitu přes signIn("nodemailer",{email,redirect:false,redirectTo:"/admin"}); selhání mailu nevrací zpět
+- [2026-09-25] F6: úprava modulů po vytvoření = mimo scope (SQL); follow-up v notes/
 ## Otevřené otázky / blokery
-- Fáze 4 čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele
-- slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)
+- Fáze 4: čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele (E2E test)
