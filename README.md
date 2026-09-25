@@ -158,6 +158,13 @@ UPDATE users SET is_superadmin = true WHERE email = 'jmeno@example.com';
 Superadmin má také automaticky přístup (jako owner) na jakýkoli existující
 web, i bez `site_memberships` řádku (viz `requireSiteAccess` v `src/lib/auth.ts`).
 
+Nastavení konkrétního webu (název, zapnuté moduly, webhook URL, rotace
+webhook secretu, testovací webhook) je přes UI na `/admin/<slug>/settings`
+(jen pro superadmina). Secret se po vygenerování/rotaci zobrazí přesně
+jednou — pokud si ho provozovatel nezkopíruje, musí ho vygenerovat znovu
+(stará hodnota přestane platit). Alternativně jde nastavení upravit i přímo
+v DB (viz SQL níže) — UI i SQL zapisují do stejných sloupců.
+
 ## On-demand revalidace
 
 Vlastní veřejné API (`/api/public/[site]/[modul]`) je cachované na serveru
@@ -175,7 +182,8 @@ na svou vlastní 60s/1h cache místo okamžité revalidace.
 
 ### Nastavení webhooku pro web
 
-Webhook nastavuje provozovatel ručně v DB (žádné admin UI, mimo scope F7):
+Webhook nastavuje provozovatel přes `/admin/<slug>/settings` (viz sekce
+Superadmin výše), nebo ručně v DB:
 
 ```sql
 UPDATE sites

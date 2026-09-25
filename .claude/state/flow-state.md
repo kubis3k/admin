@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 7 z ROADMAP.md — on-demand revalidace (revalidatePath vlastního API + podepsaný webhook na klientský web)
-- tier: T3
-- status: hotovo (coder)
+- cíl: follow-up — /admin/[site]/settings pro superadmina (moduly, název, webhook URL + rotace secretu, testovací webhook)
+- tier: T2
+- status: running
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 7 hotová — skutečná cache API (public-data.ts, unstable_cache+tagy) + revalidateTag + podepsaný webhook; 2× critic APPROVE, E2E prod build + webhook OK; push 394e6c1
+- poslední dokončený krok: settings stránka hotová (/admin/[site]/settings) — implementace + testy/tsc/build zelené; necommitováno
 - rozpracovaný soubor + řádek: —
-- další krok: všech 7 fází ROADMAP hotovo; zbývá živý test uploadu F4 (BLOB_READ_WRITE_TOKEN) a follow-upy: /admin/[site]/settings (moduly+webhook pro superadmina), chyby do formulářů (useActionState)
+- další krok: review/commit; případně E2E ověření webhooku (test tlačítko)
 ## Mapa poznání (co víme o codebase)
 - modul auth: src/auth.ts + src/lib/auth.ts + src/app/{admin/login, api/auth, forbidden}.tsx — NextAuth v5 s Nodemailer provider, DrizzleAdapter, DB sessions, magic link jen pro existující e-maily (bez enumerace); role: staff(1)=položky/eventy, owner(2)=kategorie/stránky/rozvrh; 403 přes forbidden(), 401→/admin/login; requireSiteAccess+requireModule pattern; isSuperadmin (cache, z DB) + requireSuperadmin middleware
 - modul onboarding (F6): src/app/admin/new-site/{page,form,actions}.tsx + lib/sites.ts (+test) — superadmin (users.is_superadmin), db.batch site+user+membership, magic link po commitu
@@ -15,6 +15,7 @@
 - modul events: src/lib/events.ts + src/app/admin/[site]/events/{page,actions}.ts + src/app/api/public/[site]/events/route.ts — staff CRUD; staff publikuje (is_published); API přes public-data.ts jen published+future (Czech time); imageUrl https validace; 10 testů
 - modul content: src/lib/content.ts + src/app/admin/[site]/content/{page,actions}.ts + src/app/api/public/[site]/content/{route,pageKey}.ts — owner vytvoří (pageKey ^[a-z0-9-]{1,50}$), staff edituje markdown (≤50k); API {pages:[pageKey,updatedAt], [pageKey]→content}; 6 testů
 - modul gallery: src/lib/upload.ts + src/lib/blob.ts + src/app/admin/[site]/gallery/{page,actions}.ts + src/app/api/public/[site]/gallery/route.ts — Vercel Blob; staff upload jpeg/png/webp/avif/gif (≤4MB); delete jen isOurBlobUrl; API {images:[id,url,alt]}; 14 testů
+- settings: src/app/admin/[site]/settings/{page,form,actions}.tsx — superadmin-only UI (requireSiteAccess+!isSuperadmin→forbidden); updateSiteSettings/updateWebhookUrl/rotateWebhookSecret/sendTestWebhook; src/lib/revalidate.ts exportuje deliverWebhook (sdíleno s notifySiteChange); admin/page.tsx odkaz „Nastavení"
 - revalidace (F7): src/lib/public-data.ts (unstable_cache per modul, tag gastro:<slug>:<modul>, 60 s) + src/lib/revalidate.ts (notifySiteChange → revalidateTag + webhook přes after()) + src/lib/webhook.ts (+test, HMAC) — voláno ze všech 24 mutačních akcí; API routes čtou jen z public-data.ts
 - src/db/schema.ts: sites({name,slug,modules{menu/hours/events/content/gallery bool},webhookUrl,webhookSecret}) + 10 tabulek (users, accounts, sessions, verification_tokens, site_memberships, opening_hours, opening_hour_exceptions, events, page_content, gallery_images); relations kompletní
 - src/db/index.ts + drizzle.config.ts: drizzle neon-http, migrations ./src/db/migrations
@@ -62,6 +63,10 @@
 - [2026-09-25] F7 eskalace: data API přes unstable_cache (tag gastro:<slug>:<module>, revalidate 60), notifySiteChange → revalidateTag; „dnes" (hours/events) počítat mimo cache
 - [2026-09-25] F7 eskalace hotovo: /api/public/* zůstává ƒ Dynamic v build výstupu i po opravě (to je OK — unstable_cache je Next Data Cache, ne route-level cache, badge ƒ/○ o něm nic neříká); hours cache fetchuje výjimky od včerejška (addDays -1), computeEffectiveSchedule+"dnes" počítá route; events cache = všechny publikované, filtr date>=dnes i ?all=1 v route; apiPathsFor (webhook.ts) smazáno jako nepotřebné — revalidace jde přes revalidateTag, ne revalidatePath cesty
 - [2026-09-25] F7: po createSite invalidace tagů všech modulů nového slugu (API mohlo cachovat „site neexistuje")
+- [2026-09-25] settings: jen superadmin (owner 403); změna modulů → revalidateTag všech 5 tagů + notifySiteChange pro přepnuté moduly
+- [2026-09-25] settings: secret randomBytes(32) hex, v DB čitelně (nutné pro HMAC), plně zobrazen JEN v odpovědi rotace (useActionState), stránka ukazuje jen nastaven/nenastaven
+- [2026-09-25] settings: testovací webhook synchronně (ne after), module "test", tags [], výsledek (status/chyba) do UI
 ## Otevřené otázky / blokery
+- push: lokální commity nepushnuté — Git Credential Manager čeká na přihlášení uživatele
 - Fáze 4: čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele (E2E test)
 - tests.md v rootu — prázdný soubor neznámého původu (asi Obsidian), necommitováno, nemazat bez uživatele

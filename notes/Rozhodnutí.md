@@ -62,3 +62,8 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - Webhook podepsaný HMAC-SHA256 nad `${ts}.${body}` s tolerancí 300 s (ochrana proti replay); odesílá se přes `after()`, admin nečeká; bez retry — záloha je `revalidate` klienta.
 - Webhook URL nastavuje jen provozovatel (SQL) → SSRF riziko akceptováno; produkce jen `https`.
 - „Dnes" se počítá mimo cache, aby data nezastarala přes půlnoc.
+
+## Nastavení webu (follow-up)
+- `/admin/[site]/settings` jen pro superadmina — moduly jsou rozhodnutí provozovatele, ne ownera.
+- Webhook secret v DB čitelně (podpis HMAC ho potřebuje), uživateli ukázán jen jednou; stránka nikdy nedostane secret (jen `hasSecret`).
+- Testovací webhook synchronně (uživatel chce výsledek hned), automatické notifikace dál přes `after()`.

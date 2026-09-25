@@ -84,6 +84,12 @@ export default async function AdminHomePage() {
               {m.modules.gallery && (
                 <Link href={`/admin/${m.slug}/gallery`}>Galerie</Link>
               )}
+              {superadmin && (
+                <>
+                  {" · "}
+                  <Link href={`/admin/${m.slug}/settings`}>Nastavení</Link>
+                </>
+              )}
             </li>
           ))}
         </ul>

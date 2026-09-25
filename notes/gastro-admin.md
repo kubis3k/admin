@@ -20,6 +20,12 @@ Stack: Next.js 15.5 (App Router), Drizzle, Neon Postgres, Auth.js v5.
 
 Zadání fází: `ROADMAP.md` v rootu.
 
+## Follow-upy (mimo ROADMAP)
+| Téma | Stav | Poznámka |
+|---|---|---|
+| Nastavení webu (superadmin) | ✅ ověřeno E2E | [[Nastavení webu (superadmin)]] |
+| Chyby validace přímo ve formulářích | ⏳ | dluh z [[Fáze 3 — Eventy]] |
+
 ## Rychlé odkazy
 - [[Rozhodnutí]] — log architektonických rozhodnutí
 - [[Testovací prostředí]] — Neon DB, testovací účty, jak se přihlásit v devu
