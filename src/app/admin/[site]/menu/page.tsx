@@ -1,6 +1,8 @@
+import Image from "next/image";
 import { db } from "@/db";
 import { menuCategories } from "@/db/schema";
 import { requireSiteAccess, hasRole } from "@/lib/auth";
+import { isOurBlobUrl } from "@/lib/upload";
 import { eq, asc } from "drizzle-orm";
 import {
   createCategory,
@@ -9,6 +11,8 @@ import {
   updateItem,
   toggleAvailability,
   deleteItem,
+  setItemImage,
+  removeItemImage,
 } from "./actions";
 
 function formatPrice(cents: number) {
@@ -100,6 +104,38 @@ export default async function MenuAdminPage({
                 >
                   <button type="submit">Smazat</button>
                 </form>
+
+                <div style={{ marginTop: 4 }}>
+                  {item.imageUrl && isOurBlobUrl(item.imageUrl) && (
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      width={64}
+                      height={64}
+                      style={{ objectFit: "cover", verticalAlign: "middle", marginRight: 8 }}
+                    />
+                  )}
+                  <form
+                    action={setItemImage.bind(null, item.id, siteSlug)}
+                    style={{ display: "inline" }}
+                  >
+                    <input
+                      type="file"
+                      name="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                      required
+                    />
+                    <button type="submit">Nahrát obrázek</button>
+                  </form>
+                  {item.imageUrl && (
+                    <form
+                      action={removeItemImage.bind(null, item.id, siteSlug)}
+                      style={{ display: "inline", marginLeft: 4 }}
+                    >
+                      <button type="submit">Odebrat obrázek</button>
+                    </form>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

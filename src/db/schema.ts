@@ -298,6 +298,32 @@ export const pageContent = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// GALLERY_IMAGES — obrázky nahrané přes Vercel Blob (F4).
+// `pathname` je klíč v Blob storage (potřebný pro smazání přes del()).
+// Řazení v adminu/na veřejném webu podle sort_order.
+// ---------------------------------------------------------------------------
+export const galleryImages = pgTable(
+  "gallery_images",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    pathname: text("pathname").notNull(),
+    alt: text("alt").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    siteSortIdx: index("gallery_images_site_id_sort_order_idx").on(
+      t.siteId,
+      t.sortOrder
+    ),
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Relace — usnadní nested query (site -> categories -> items)
 // ---------------------------------------------------------------------------
 export const sitesRelations = relations(sites, ({ many }) => ({
@@ -307,6 +333,14 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   openingHourExceptions: many(openingHourExceptions),
   events: many(events),
   pageContent: many(pageContent),
+  galleryImages: many(galleryImages),
+}));
+
+export const galleryImagesRelations = relations(galleryImages, ({ one }) => ({
+  site: one(sites, {
+    fields: [galleryImages.siteId],
+    references: [sites.id],
+  }),
 }));
 
 export const eventsRelations = relations(events, ({ one }) => ({

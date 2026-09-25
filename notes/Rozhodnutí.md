@@ -40,3 +40,10 @@ Zpět: [[gastro-admin]] · Append-only — starší rozhodnutí se nepřepisují
 - API vrací surový markdown — sanitizace při vykreslení je na klientském webu (zdokumentováno v README).
 - `createPage` přes `ON CONFLICT DO NOTHING` — souběžné založení nespadne na unique constraint.
 - Fáze 4 odložena: potřebuje Vercel Blob store + `BLOB_READ_WRITE_TOKEN` od uživatele.
+
+## Fáze 4
+- Upload přes server action + `put()` (ne klientský upload) — jednodušší, stačí pro obrázky do 4 MB.
+- SVG zakázané (může obsahovat skript), typ podle `file.type` + Blob ukládá s `contentType: image/*`.
+- Blob mazat jen pro naši doménu; chyba mazání nesmí shodit akci.
+- `serverActions.bodySizeLimit = "5mb"` globálně — jiné akce velká data nepřijímají.
+- Blob store nešlo založit přes Vercel MCP (403, chybí oprávnění) → zakládá uživatel.

@@ -49,6 +49,12 @@ export default async function AdminHomePage() {
               {m.modules.content && (
                 <Link href={`/admin/${m.slug}/content`}>Obsah stránek</Link>
               )}
+              {(m.modules.menu || m.modules.hours || m.modules.events || m.modules.content) &&
+                m.modules.gallery &&
+                " · "}
+              {m.modules.gallery && (
+                <Link href={`/admin/${m.slug}/gallery`}>Galerie</Link>
+              )}
             </li>
           ))}
         </ul>

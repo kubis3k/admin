@@ -16,6 +16,8 @@ src/
     hours.ts        — čistá logika otevírací doby (computeEffectiveSchedule, bez DB)
     events.ts       — čistá logika validace eventů (validateEventInput, bez DB)
     content.ts      — čistá logika textového obsahu (isValidPageKey, validateContent, bez DB)
+    upload.ts       — čistá logika validace obrázků (validateImageFile, isOurBlobUrl, bez DB/Blob)
+    blob.ts         — I/O nad Vercel Blob (uploadImage, deleteImageIfOurs)
   auth.ts           — Auth.js v5 (magic link přes e-mail, database sessions)
   app/
     api/auth/[...nextauth]/route.ts   — Auth.js handlers
@@ -24,6 +26,7 @@ src/
     api/public/[site]/events/route.ts — veřejné API eventů (jen publikované)
     api/public/[site]/content/route.ts           — veřejné API, seznam stránek (pageKey, updatedAt)
     api/public/[site]/content/[pageKey]/route.ts — veřejné API, obsah jedné stránky (surový markdown)
+    api/public/[site]/gallery/route.ts           — veřejné API galerie (id, url, alt)
     admin/login/page.tsx              — přihlašovací stránka (magic link)
     admin/[site]/menu/
       page.tsx      — admin UI (kategorie, položky, dostupnost)
@@ -37,6 +40,9 @@ src/
     admin/[site]/content/
       page.tsx      — admin UI (seznam stránek, editace obsahu, založení/smazání)
       actions.ts    — server actions (createPage, savePageContent, deletePage)
+    admin/[site]/gallery/
+      page.tsx      — admin UI (upload, mřížka obrázků, alt, pořadí, smazání)
+      actions.ts    — server actions (uploadGalleryImage, updateAlt, moveImage, deleteGalleryImage)
 ```
 
 ## Jak spustit
@@ -53,6 +59,9 @@ npm test                      # spustí unit testy (vitest)
 Testovací tenant si vytvoř ručně přes `db:studio` (nebo napiš seed script) —
 vlož řádek do `sites` s `modules: { menu: true, hours: false, events: false, gallery: false, content: false }`.
 Modul textového obsahu se zapíná nastavením `modules.content = true`.
+Modul galerie (a upload obrázků k menu položkám) se zapíná `modules.gallery = true`
+a vyžaduje `BLOB_READ_WRITE_TOKEN` (viz `.env.example`) — bez něj upload
+hlásí chybu, zbytek appky funguje beze změny.
 
 > **Pro klientské weby:** `/api/public/[site]/content/[pageKey]` vrací **surový
 > markdown bez sanitizace** — může obsahovat i HTML (`<script>`…). Vykreslujte ho
@@ -71,20 +80,26 @@ Modul textového obsahu se zapíná nastavením `modules.content = true`.
   `/^[a-z0-9-]{1,50}$/`), obsah v Markdownu (max 50 000 znaků), owner
   zakládá/maže stránky, staff edituje obsah — bez rich-text editoru,
   náhledu markdownu a verzování (mimo scope)
+- Modul galerie: upload obrázků přes Vercel Blob (max 4 MB, JPEG/PNG/WebP/AVIF/GIF),
+  alt text, ruční řazení (↑/↓), smazání (i z Blob storage) — bez komprese/resize,
+  drag&drop a klientského (direct) uploadu (mimo scope F4)
+- Upload obrázku i pro jednotlivé menu položky (nahrazuje textové `imageUrl`,
+  stará hodnota z Blob storage se smaže; externí URL se nemažou)
 - Veřejná API (`/api/public/[site]/menu`, `/api/public/[site]/hours`,
-  `/api/public/[site]/events`, `/api/public/[site]/content`) s 60s cache
+  `/api/public/[site]/events`, `/api/public/[site]/content`,
+  `/api/public/[site]/gallery`) s 60s cache
 - Admin UI s CRUD operacemi přes server actions
 
 ## Co záměrně chybí (TODO, další fáze)
 
 - **Onboarding nového tenanta** — zatím se site vytváří ručně v DB
 - **Superadmin role, reset hesla** — mimo scope, řeší se to per-site rolí owner/staff
-- **Ostatní moduly** — galerie (stejný vzor jako menu/otevírací
-  doba/eventy/obsah: tabulka + server actions + admin page + veřejné API)
 - **RSVP/kapacita a opakující se eventy** — mimo scope modulu eventů (F3)
 - **On-demand revalidace** — teď čeká na vypršení 60s cache; při uložení v adminu
   by šlo rovnou zavolat `revalidateTag()` na klientský web
-- **Upload obrázků** — `imageUrl` je teď jen text pole, chybí napojení na Vercel Blob/R2
+- **Komprese/resize obrázků, drag&drop, klientský (direct) upload** — mimo scope
+  modulu galerie (F4), upload je jen přes `<input type="file">`
+- **Upload obrázku k eventům** — `events.imageUrl` zůstává jen text pole (URL)
 
 ## Přihlášení
 

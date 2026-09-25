@@ -1,12 +1,12 @@
 # FLOW STATE
 ## Aktuální úkol
-- cíl: Fáze 5 z ROADMAP.md — textový obsah (page_content, /admin/[site]/content, /api/public/[site]/content[/pageKey])
+- cíl: Fáze 4 z ROADMAP.md — galerie + upload (Vercel Blob), gallery_images, /admin/[site]/gallery, upload i pro menu položky
 - tier: T2
-- status: done
+- status: running
 ## Kde jsme skončili (checkpoint)
-- poslední dokončený krok: Fáze 5 hotová — critic APPROVE (+ oprava race v createPage), E2E OK, commit + push; detail v notes/Fáze 5 — Textový obsah.md
+- poslední dokončený krok: Fáze 4 hotová (kód + migrace 0005_gallery aplikována); test/tsc/build zelené i bez BLOB_READ_WRITE_TOKEN
 - rozpracovaný soubor + řádek: —
-- další krok: Fáze 4 (čeká na Vercel Blob store od uživatele), pak Fáze 6
+- další krok: až uživatel doplní BLOB_READ_WRITE_TOKEN → E2E ověřit živý upload (galerie i menu obrázek) a commit/push
 ## Mapa poznání (co víme o codebase)
 - src/db/schema.ts: sites, menu_categories, menu_items (beze změny) + users, accounts, sessions, verification_tokens (Auth.js/@auth/drizzle-adapter Postgres schéma, snake_case sloupce) + siteRole enum("owner","staff") + site_memberships (composite PK user_id+site_id, index na site_id); relations rozšířené o memberships
 - src/db/index.ts: drizzle neon-http, export db (se schema)
@@ -72,6 +72,22 @@
 - src/app/admin/page.tsx: rozcestník + odkaz "Obsah stránek" když modules.content
 - README.md: aktualizována struktura + „Co je hotové"/„Co chybí" pro F5 (rich-text/náhled/verzování mimo scope)
 - migrace 0004_content.sql vygenerována a aplikována (CREATE TABLE page_content + FK + ALTER sites.modules default; nic jiného)
+- [2026-09-25] F4: upload přes server action + put() (@vercel/blob), max 4 MB (limit těla funkce 4,5 MB), jpeg/png/webp/avif/gif
+- [2026-09-25] F4: blob se maže jen když URL je náš *.public.blob.vercel-storage.com (stará imageUrl může být cokoli)
+- [2026-09-25] F4: role — galerie i obrázky menu = staff; next/image s remotePatterns na Blob doménu
+- @vercel/blob nainstalován (^2.8.0)
+- src/db/schema.ts: + galleryImages ("gallery_images": id, site_id FK cascade, url text notNull, pathname text notNull, alt text notNull default '', sort_order int notNull default 0, created_at; index (site_id,sort_order)); sitesRelations.galleryImages + galleryImagesRelations
+- src/lib/upload.ts (NOVÝ, bez "@/" importů): ALLOWED_IMAGE_TYPES (jpeg/png/webp/avif/gif, ne svg), MAX_IMAGE_BYTES=4MB, validateImageFile, isOurBlobUrl (https + hostname endsWith .public.blob.vercel-storage.com), validateAlt (trim+slice 300); + upload.test.ts (14 testů)
+- src/lib/blob.ts (NOVÝ, server-only I/O): uploadImage(file,prefix) → validuje přes upload.ts, put() s crypto.randomUUID() názvem, throw když chybí BLOB_READ_WRITE_TOKEN; deleteImageIfOurs(url) → del() jen když isOurBlobUrl, chybu jen loguje (žádné "server-only" npm balíčku — není v deps, vynecháno)
+- src/app/admin/[site]/gallery/actions.ts (NOVÝ): uploadGalleryImage/updateAlt/moveImage/deleteGalleryImage — vše staff + requireModule(site,"gallery"); moveImage přes db.batch (2 UPDATE, neon-http nemá interaktivní transakce) prohodí sort_order se sousedem; delete používá .returning() pak deleteImageIfOurs
+- src/app/admin/[site]/gallery/page.tsx (NOVÝ): upload form (input file + alt), mřížka obrázků přes next/image, per-obrázek alt edit/↑/↓/smazat
+- src/app/admin/[site]/menu/actions.ts: + setItemImage(itemId,siteSlug,formData) a removeItemImage — staff + requireModule(menu), IDOR přes categoryIdsOfSite; nahrazuje starou imageUrl a maže ji z Blob jen když isOurBlobUrl
+- src/app/admin/[site]/menu/page.tsx: + náhled 64×64 (jen když isOurBlobUrl), inline upload/"Odebrat obrázek" formuláře u položky
+- src/app/api/public/[site]/gallery/route.ts (NOVÝ): revalidate 60, 404 site/modul, {site,images:[{id,url,alt}]} řazeno sort_order,created_at asc
+- next.config.ts: + images.remotePatterns (*.public.blob.vercel-storage.com) + experimental.serverActions.bodySizeLimit="5mb" (default 1MB nestačí na 4MB upload)
+- src/app/admin/page.tsx: + odkaz "Galerie" když modules.gallery
+- .env.example: + BLOB_READ_WRITE_TOKEN s komentářem; README aktualizováno (struktura, hotové/chybí, poznámka o 4MB limitu)
+- migrace 0005_gallery.sql vygenerována a aplikována (jen CREATE TABLE gallery_images + FK + index)
 ## Otevřené otázky / blokery
 - Fáze 4 čeká na Vercel Blob store + BLOB_READ_WRITE_TOKEN od uživatele
 - slug "login" je zastíněn /admin/login → rezervovat ve Fázi 6 (validace slugu)

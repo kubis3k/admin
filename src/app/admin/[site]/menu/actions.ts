@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { menuCategories, menuItems } from "@/db/schema";
 import { requireSiteAccess, requireModule } from "@/lib/auth";
+import { uploadImage, deleteImageIfOurs } from "@/lib/blob";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { forbidden } from "next/navigation";
@@ -105,5 +106,53 @@ export async function deleteItem(itemId: string, siteSlug: string) {
   await db
     .delete(menuItems)
     .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
+  revalidatePath(`/admin/${siteSlug}/menu`);
+}
+
+export async function setItemImage(
+  itemId: string,
+  siteSlug: string,
+  formData: FormData
+) {
+  const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Nebyl vybrán žádný soubor");
+  }
+
+  const item = await db.query.menuItems.findFirst({
+    where: and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))),
+  });
+  if (!item) forbidden();
+
+  const { url } = await uploadImage(file, `${site.slug}/menu`);
+  const oldImageUrl = item.imageUrl;
+
+  await db
+    .update(menuItems)
+    .set({ imageUrl: url, updatedAt: new Date() })
+    .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
+
+  await deleteImageIfOurs(oldImageUrl);
+  revalidatePath(`/admin/${siteSlug}/menu`);
+}
+
+export async function removeItemImage(itemId: string, siteSlug: string) {
+  const { site } = await requireSiteAccess(siteSlug, "staff");
+  requireModule(site, "menu");
+
+  const item = await db.query.menuItems.findFirst({
+    where: and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))),
+  });
+  if (!item) forbidden();
+
+  await db
+    .update(menuItems)
+    .set({ imageUrl: null, updatedAt: new Date() })
+    .where(and(eq(menuItems.id, itemId), inArray(menuItems.categoryId, categoryIdsOfSite(site.id))));
+
+  await deleteImageIfOurs(item.imageUrl);
   revalidatePath(`/admin/${siteSlug}/menu`);
 }
